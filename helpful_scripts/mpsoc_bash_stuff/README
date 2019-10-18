@@ -1,0 +1,16 @@
+At the moment I have a bunch of different stuff dumped here. To just get up and
+running, pick one of the aliases files (obviously I think my own is the best, 
+but you're better off using clarks_aliases) and put it in /root/.bash_aliases
+
+If using Camilo's aliases, put disablePci.sh into /root/disablePci.sh
+
+Why do I have three different choices for the aliases file?
+
+-> camilos_aliases are the ones I have been using successfully for the past few
+   weeks
+   
+-> clarks_aliases are the ones that Clark has most recently distribyted, but 
+   that I haven't used yet
+   
+-> marcos_aliases is my ongoing attempt to make a "final" aliases file, but I 
+   can't guarantee it works 100% of the time

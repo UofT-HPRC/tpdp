@@ -1,3 +1,6 @@
+# Please place this file into /root/.bash_aliases on the MPSoC you're using
+# and put disablePci.sh into /root/disablePci.sh
+
 alias cd.="cd .."
 alias cd..="cd ../.."
 alias va="vi ~/.bash_aliases"

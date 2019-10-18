@@ -1,3 +1,6 @@
+# Please place this file into /root/.bash_aliases on the MPSoC you're using
+
+
 psgrep() {
 	pattern=$(echo $1 | sed -r 's/(.)(.*)/\[\1\]\2/')
 	ps aux | grep "$pattern"

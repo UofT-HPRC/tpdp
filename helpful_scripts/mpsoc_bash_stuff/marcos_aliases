@@ -1,0 +1,130 @@
+# Please place this file into /root/.bash_aliases on the MPSoC you're using
+
+
+psgrep() {
+	pattern=$(echo $1 | sed -r 's/(.)(.*)/\[\1\]\2/')
+	ps aux | grep "$pattern"
+}
+killxvc() {
+	pid=$(psgrep 'xvcserver' | awk '{print $2}')
+	if [ ! -z $pid ]; then
+		kill -9 $pid
+	fi
+}
+
+alias program="killxvc; echo $1 > /sys/class/fpga_manager/fpga0/firmware"
+alias dtboprogram="mkdir /sys/kernel/config/device-tree/overlays/full; echo $1 > /sys/kernel/config/device-tree/overlays/full/path"
+alias dtboreprogram="rmdir /sys/kernel/config/device-tree/overlays/full; mkdir /sys/kernel/config/device-tree/overlays/full; echo $1 > /sys/kernel/config/device-tree/overlays/full/path"
+alias firmlist="ls /lib/firmware"
+
+pci_remove() {
+	for d in `find /sys/bus/pci/devices -mindepth 1 -maxdepth 1`; do
+		echo "remove $(basename $d)"
+		echo 1 > "${d}/remove"
+	done
+}
+
+offload_ovelay() {
+	pci_remove
+	if [ -e /sys/kernel/config/device-tree/overlays/full ]; then
+		rmdir /sys/kernel/config/device-tree/overlays/full
+	fi
+}
+
+overlay_program() {
+	if [ ! -e /sys/kernel/config/device-tree ]
+		then
+			mountoverlay
+			dtboprogram $1
+	elif [ ! -e /sys/kernel/config/device-tree/overlays/full ]
+		then
+			dtboprogram $1
+	else
+		pci_remove
+		dtboreprogram $1
+	fi
+}
+set_clocks()
+{
+        local clka=${1-100}
+        local clkb=${2-0}
+        local clkc=${3-0}
+        local clkd=${4-0}
+        if [ $clka -ge 1 ]; then
+                echo $clka > /sys/mpsoc/clocks/fclk0/frequency
+                echo 1 > /sys/mpsoc/clocks/fclk0/enable
+                local output=$( cat /sys/mpsoc/clocks/fclk0/frequency )
+                echo "fclk0 set to $output and enabled"
+        else
+                echo 0 > /sys/mpsoc/clocks/fclk0/enable
+                echo "fclk0 is disabled"
+        fi
+        if [ $clkb -ge 1 ]; then
+                echo $clkb > /sys/mpsoc/clocks/fclk1/frequency
+                echo 1 > /sys/mpsoc/clocks/fclk1/enable
+                local output=$( cat /sys/mpsoc/clocks/fclk1/frequency )
+                echo "fclk1 set to $output and enabled"
+        else
+                echo 0 > /sys/mpsoc/clocks/fclk1/enable
+                echo "fclk1 is disabled"
+        fi
+        if [ $clkc -ge 1 ]; then
+                echo $clkc > /sys/mpsoc/clocks/fclk2/frequency
+                echo 1 > /sys/mpsoc/clocks/fclk2/enable
+                local output=$( cat /sys/mpsoc/clocks/fclk2/frequency )
+                echo "fclk2 set to $output and enabled"
+
+        else
+                echo 0 > /sys/mpsoc/clocks/fclk2/enable
+                echo "fclk2 is disabled"
+                fi 
+        if [ $clkd -ge 1 ]; then
+                echo $clkd > /sys/mpsoc/clocks/fclk3/frequency
+                echo 1 > /sys/mpsoc/clocks/fclk3/enable
+                local output=$( cat /sys/mpsoc/clocks/fclk3/frequency )
+                echo "fclk3 set to $output and enabled"
+
+        else
+                echo 0 > /sys/mpsoc/clocks/fclk3/enable
+                echo "fclk3 is disabled"
+        fi
+}
+
+# Stuff from my personal .bash_aliases I finf helpful
+
+alias cp="cp -i"                          # confirm before overwriting something
+alias df='df -h'                          # human-readable sizes
+alias free='free -m'                      # show sizes in MB
+alias more=less
+
+function cd() {
+  if [ "$#" = "0" ]
+  then
+  pushd ${HOME} > /dev/null
+  elif [ -f "${1}" ]
+  then
+    vim ${1}
+  else
+  pushd "$1" > /dev/null
+  fi
+}
+
+function bd(){
+  if [ "$#" = "0" ]
+  then
+    popd > /dev/null
+  else
+    for i in $(seq ${1})
+    do
+      popd > /dev/null
+    done
+  fi
+}
+
+export CDPATH=".:~"
+
+alias add2path="export PATH=\$PWD:\$PATH"
+alias pstop="pkill --signal SIGSTOP"
+alias pcont="pkill --signal SIGCONT"
+
+export CSCOPE_EDITOR=vim

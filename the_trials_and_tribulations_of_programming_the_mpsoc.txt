@@ -15,8 +15,13 @@ $ bootgen -arch zynqmp -image specific.bif -o my_output.bin -w
 $ dtc -O dtb -o my_output.dtbo -b 0 -@ my_thing.dtsi
 $ scp ...
 
--> On the MPSoC
+-> On the MPSoC (if not done already)
 $ sudo insmod /path/to/axidma.ko
+$ sudo insmod /path/to/mpsoc_axiregs.ko
+$ sudo insmod /path/to/mpsoc_PSRegs.ko
+$ mountoverlay
+
+-> On the MPSoC (done every time I have a new bitstream)
 $ cp my.bin /lib/firmware/whateveriputinthedevicetree.bin
 $ cp my.dtbo /lib/firmware/my.dtbo
 $ set_clocks freq1 [freq2] [freq3] [freq4] 
@@ -314,40 +319,59 @@ $ dtc -O dtb -o my_output.dtbo -b 0 -@ my_thing.dtsi
 ACTUALLY PROGRAMMING THE FPGA 
 -----------------------------
 
-You need a lot of stuff in place for this to work. For starters, Clark's Linux
-setup should have all the necessary drivers for PCAP (PCAP is the name given to
-the hardened circuit in the PS which is used for reprogramming the FPGA fabric).
-It should also include Xilinx's AXI DMA driver. Also, Camilo has written some 
-bash commands which you will need. They are in the helpful_bash_stuff folder
+You need a lot of stuff in place for this to work. 
+- Clark's Linux setup should have all the necessary drivers for PCAP (PCAP is 
+  the name given to the hardened circuit in the PS which is used for programming
+  the FPGA fabric).
+- Mount the configfs filesystem (needed for applying device tree overlays)
+- Clark and Camilo have written some  bash commands which you will need. They 
+  are in the helpful_scripts/mpsoc_bash_stuff/clarks_aliases file. I provided
+  the one Camilo was using just for reference. I also have my own version, which
+  I don't feel like explaining
+- You will disablePci.sh in /root/disablePci.sh. I have provided this file in
+  helpful_scripts/mpsoc_bash_stuff
+- (If using PS to PL) Xilinx's AXI DMA driver (included in the kernel)
+- (If using PS to PL) The axidma.ko driver (which should be somewhere in the
+  home folder)
+
 
 In order to program the FPGA (with support for the PS to PL communication), you
 will need to perform the following steps:
 
-1. Insert the axidma.ko module, if it hasn't been done already. There is a copy
-of it in /home/savi/drivers/axidma.ko (This module was built from the repo at
-https://github.com/bperez77/xilinx_axidma)
+1. (If using PS to PL) Insert the axidma.ko module, if it hasn't been done 
+   already. There is a copy of it in /home/savi/drivers/axidma.ko This module 
+   was built from the EXCELLENT repo at:
+   
+   https://github.com/bperez77/xilinx_axidma
 
-2. Copy your .bin and .dtbo files into /lib/firmware. I don't really know why
-we have to do this; I guess something about the device tree and search paths or
-something...
+2. Check if configfs is mounted. Basically, there should be a folder called 
+   /configfs with some device tree stuff in it. If not, run:
 
-3. After doing a sudo su, issue the set clocks command as: 
+   $ mountoverlay
 
-$ set_clocks freq1 [freq2] [freq3] [freq4] 
+3. Copy your .bin and .dtbo files into /lib/firmware. I don't really know why
+   we have to do this; I guess something about the device tree and search paths 
+   or something...
+   
+   $ cp my.bin /lib/firmware/my.bin
+   $ cp my.dtbo /lib/firmware/my.dtbo
 
-to match the CPU outputs clock frequencies you set in
-your block diagram. I don't know why you need to do this; shouldn't the device
-tree take care of this?
+4. After doing a sudo su, issue the set clocks command as: 
 
-4. Navigate to /lib/firmware and install the device tree overlay:
+   $ set_clocks freq1 [freq2] [freq3] [freq4] 
 
-$ overlay_reprogram my_overlay.dtbo
+   to match the CPU outputs clock frequencies you set in your block diagram. 
+   This is something the mpsoc_PSegs driver could take care of automatically,
+   but it has not been implemented yet
 
-5. (I don't think you need to do this; shouldn't the device tree stuff take
-care of it?) Upload the bitstream with program my_bitstream.bin
+5. Navigate to /lib/firmware and install the device tree overlay:
+
+   $ overlay_reprogram my_overlay.dtbo
+
+   This will also program the bitstrem
 
 6. (Optional) Verify that the axidma driver recognized your stuff. It'll say
-something like "1 transmit and 1 receive channel found" in dmesg.
+   something like "1 transmit and 1 receive channel found" in dmesg.
 
 
 
