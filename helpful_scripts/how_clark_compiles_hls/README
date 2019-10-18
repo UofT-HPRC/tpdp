@@ -1,0 +1,47 @@
+Clark has a really nice way to package HLS designs as IPs. The other benefit is
+that you can use this template of scripts and folders as your git repo, without
+any of Vivado's extra emotional baggage (i.e. files) dragging you down.
+
+PLEASE NOTE
+-----------
+
+This method DOES NOT work with the HLS interface pragma. There might be problems
+with other pragmas too, but I don't know about them.
+
+Your mileage may vary!
+
+
+HOW TO USE
+----------
+
+Put your HLS .cpp files in src/, and .h files in include/. Edit the parameters
+in config.mk to match the part number and frequency you're targeting, and be
+sure to write the top level function name in the ip name field.
+
+Then, type make and follow the instruction in scripts/ip_package.tcl. These 
+instructions are copied below for your reference:
+
+The first time you type make, it will open the Vivado GUI in IP packaging mode.
+Edit the IP the way you normally would. Every time you make a change, Vivado
+spits out a command in the tcl console; paste that comment into the appropriate
+place of ip_package.tcl (there is a comment to guide you).
+
+Once you are done, uncomment the TCL commands with ###three pound symbols and 
+remove the line that says "start_gui"
+
+
+ARCANA
+------
+
+There are a small number of GUI actions that don't spit out a TCL command. I had
+a problem where I needed to change some memory map sizes, and it took quite a 
+while to find the exact TCL commands.
+
+I don't remember the specifics anymore, but I felt like I should supply the TCL
+commands I used:
+
+set_property range {4096} [ipx::get_address_blocks -of_objects [ipx::get_memory_maps -of_objects [ipx::current_core ]]]
+set_property range_dependency {} [ipx::get_address_blocks -of_objects [ipx::get_memory_maps -of_objects [ipx::current_core ]]]
+
+Anyway, there you go
+

@@ -1,0 +1,131 @@
+SSH STUFF
+---------
+
+Hit enter, then '~', then '?'. This lists a set of things you can do to an open
+SSH session. In particular, you can enter a little command line and add extra
+port forwards (i.e. tunnels) without having to log out.
+
+
+BASH STUFF
+----------
+
+Hit 'CTRL-R' to do a search of your command history. I use this ALL THE TIME
+
+On any running process, you can hit 'CTRL-Z' to pause it and regain control of
+your shell. At that point, you can type 'bg' to allow it to continue running in
+the background, or type 'fg' to let it continue running in the foreground.
+
+Use 'jobs' to see a list of all the jobs running under your bash session. You 
+can use 'fg JOB_NUMBER' to "re-attach" to a background job
+
+If you want to let a job keep running, but exit the bash session, you can type
+'disown -a'. This will "disown" all the child jobs of the bash session. You can
+do it selectively but I don't remember how.
+
+"cd -" will go to the last directory you were in, and "cd" by itself will warp 
+you to your home folder. Also check out "pushd" and "popd"; I actually aliased
+my cd command to do a "pushd ."
+
+At any point in a command involving directories, you can use "~" as a replacement
+for "/home/your_username/". In most cases, F5 will type a tilde for you (which 
+is convenient for me since I use the French keyboard)
+
+Add directories to your CDPATH environment variable. For example, I have 
+export CDPATH=".:~" 
+in my bashrc. No matter where I am on the filesystem, I can type cd some_folder
+and (unless some_folder is in my current directory) it will take my to 
+/home/marco/some_folder
+
+
+GENERAL SYSADMIN STUFF
+----------------------
+
+By far the best network configuration instructions on the whole internet are on
+this Arch Linux wiki page (they work for other distros):
+https://wiki.archlinux.org/index.php/Network_configuration
+
+I like to use "vmstat -S M 1 10" to get an idea of memory and disk usage. The
+-S M means "use megabytes as units", the 1 means intervals of 1 second between
+measurements, and the 10 means repeat 10 times
+
+
+VIM STUFF
+---------
+
+I often use VIM as a handy regex-find-and-replace engine. For example, this is a
+little vim command you can use which is really helpful for writing Verilog
+instantiations:
+
+:%s/\v.*(<(\w*)),/\t\.\1\(\1\)\,/g
+
+It will translate a regular module declaration:
+
+	module one_hot_mux_3(
+		input wire data_A,
+		input wire en_A,
+		input wire data_B,
+		input wire en_B,
+		input wire data_C,
+		input wire en_C,
+		
+		output wire Q, //Note that I added a comma at the end here
+	);
+
+into:
+
+	module one_hot_mux_3(
+		.data_A(data_A),
+		.en_A(en_A),
+		.data_B(data_B),
+		.en_B(en_B),
+		.data_C(data_C),
+		.en_C(en_C),
+		
+		.Q(Q), //Note that I added a comma at the end here
+	);
+
+which I would then edit into:
+	
+	//declare wires with the right names...
+	one_hot_mux_3 MY_INSTANCE (
+		.data_A(data_A),
+		.en_A(en_A),
+		.data_B(data_B),
+		.en_B(en_B),
+		.data_C(data_C),
+		.en_C(en_C),
+		
+		.Q(Q) //Note that I removed the comma at the end here
+	);
+
+
+You can copy a selection in vim (use v or V to enter "visual mode") to your 
+OS's copy-paste buffer with the "+y command (quote character included). I think 
+I had to install an extra vim-related package to get this to work, but I don't 
+remember what it was
+
+VIVADO STUFF
+------------
+
+I strongly recommend starting vivado in some random empty directory. For 
+whatever reason, Vivado leaves a bunch of junk files laying around in the 
+directory you started it from. I do this with an alias:
+
+alias v="cd /home/marco/vivado_crap; source /tools/Xilinx/Vivado/2018.3/settings64.sh; vivado & disown -a;"
+
+Click the gear icon (for the main settings), go to Simulation, go to the 
+Simulation tab within that Simulation menu. I like the check "log all signals";
+it makes it so I can add/remove signals from my simulation waveforms without
+redoing the sim.
+
+
+MISC
+----
+
+Whenever I'm doing work in Vivado, I record my screen using Open Broadcasting
+Studio. It's SO EASY to do, and it has saved my butt many times. Being able to
+look back and see EVERY SINGLE STEP to making something work is invaluable, and
+it really doesn't take much space on your disk. (By the way: I play the videos
+back at like 20x speed on VLC, then slow it down when it gets to the part I was
+interested in).
+

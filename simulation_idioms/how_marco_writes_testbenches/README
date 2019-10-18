@@ -1,0 +1,30 @@
+How Marco likes to write testbenches:
+
+First, I will make a .mem file which has my test inputs. This is pretty easy to 
+make manually, but you could easily write a little program to generate it.
+
+In this folder is an example of a simulation I wrote for one of my projects.
+Essentially, in the testbench file, I use:
+
+	fd = $fopen("axistream_forwarder_drivers.mem", "r");
+	while($fgetc(fd) != "\n") begin end //Skip first line of comments
+
+to open the .mem file and skip the first line (which I use for comments). Then,
+you can write:
+
+
+	reg ready_for_forwarder;
+	reg TREADY;
+	always @(posedge clk) begin
+		if ($feof(fd)) begin
+			$display("Reached end of drivers file");
+			$finish;
+		end
+		$fscanf(fd, "%b%b", ready_for_forwarder, TREADY);
+	end
+
+
+to set your inputs just as you wrote them in your .mem file.
+
+I provided the entire testbench as a reference, but note that there is some 
+extra stuff in there you probably don't care about.

@@ -1,0 +1,15 @@
+There are three main idioms I want to explain here: the design pattern of 
+callback registration, the Linux device model, and the technique of object
+encapsulation
+
+REGISTERING CALLBACKS
+---------------------
+
+
+
+THE LINUX DEVICE MODEL
+----------------------
+
+
+OBJECT ENCAPSULATION
+--------------------

@@ -1,0 +1,147 @@
+Suppose you made a block diagram. Right click on it in the Sources menu and
+select "Generate HDL wrapper".
+
+Now, right-click in the Sources menu and select "Create new simulation file".
+I like to use systemVerilog for this, for no particular reason. (Well, I'm lying
+to you: I don't really use any of the systemVerilog extensions, but I like how
+the extension is different. Almost as if sv stood for Simulation Verilog.) Name
+it whatever you want, leave the ports empty (and click yes on the warning that
+Vivado will pop up) and then click finish. You now have an extra sv file in your
+Sources.
+
+Now, open that file. It should look something like this:
+
+	`timescale 1ns / 1ps
+	//////////////////////////////////////////////////////////////////////////////////
+	// (bunch of comments)
+	//////////////////////////////////////////////////////////////////////////////////
+
+
+	module my_testbench(
+
+	    );
+	endmodule
+
+Now I want you to do two things: go into the HDL wrapper you made earlier, and
+copy the entire module definition into VIM. There are a few small edits to make,
+see this example:
+
+	module design_1_wrapper ( //move "(" to this line
+		data_A,
+		en_A,
+		data_B,
+		en_B,
+		data_C,
+		en_C,
+		Q, //Add a comma at the end and put ");" on a new line
+	);
+
+Now run the following VIM command:
+
+:%s/\v.*(<(\w*)),/\t\.\1\(\1\)\,/g
+
+The output will look something like this:
+
+	module design_1_wrapper (
+		.data_A(data_A),
+		.en_A(en_A),
+		.data_B(data_B),
+		.en_B(en_B),
+		.data_C(data_C),
+		.en_C(en_C),
+		.Q(Q), //Add a comma at the end and put ); on a new line
+	);
+
+Paste it into your testbench file just before endmodule, and edit it slightly:
+
+	`timescale 1ns / 1ps
+	//////////////////////////////////////////////////////////////////////////////////
+	// (bunch of comments)
+	//////////////////////////////////////////////////////////////////////////////////
+
+
+	module my_testbench(
+
+	    );
+	    
+	design_1_wrapper DUT ( //Note changes to this line. Write whatever you want in place of DUT
+		.data_A(data_A),
+		.en_A(en_A),
+		.data_B(data_B),
+		.en_B(en_B),
+		.data_C(data_C),
+		.en_C(en_C),
+		
+		.Q(Q) //Removed this comma
+	);
+	endmodule
+
+We're almost done. Now go back to your wrapper, and copy out all the lines that
+start with "input" or "output" (these should be right under the module def). For
+example:
+
+	input [3:0] data_A;
+	input en_A;
+	input [3:0] data_B;
+	input en_B;
+	input [3:0] data_C;
+	input en_C;
+	output [3:0] Q;
+
+We'll find and replace "input" with "reg", and "output" with "wire":
+
+:%s/\vinput/reg/g
+:%s/\voutput/wire/g
+
+Your output should look something like:
+
+	reg [3:0] data_A;
+	reg en_A;
+	reg [3:0] data_B;
+	reg en_B;
+	reg [3:0] data_C;
+	reg en_C;
+	wire [3:0] Q;
+
+Paste this into your testbench file before your module instantiation:
+
+
+	`timescale 1ns / 1ps
+	//////////////////////////////////////////////////////////////////////////////////
+	// (bunch of comments)
+	//////////////////////////////////////////////////////////////////////////////////
+
+
+	module my_testbench(
+
+	    );
+	    
+	reg [3:0] data_A;
+	reg en_A;
+	reg [3:0] data_B;
+	reg en_B;
+	reg [3:0] data_C;
+	reg en_C;
+	wire [3:0] Q;
+	
+	design_1_wrapper DUT ( //Note changes to this line. Write whatever you want in place of DUT
+		.data_A(data_A),
+		.en_A(en_A),
+		.data_B(data_B),
+		.en_B(en_B),
+		.data_C(data_C),
+		.en_C(en_C),
+		
+		.Q(Q) //Removed this comma
+	);
+	endmodule
+
+At this point, I would make a few minor edits and write my testbench as normal.
+A REALLY great testbench-writing tutorial can be found here:
+http://www.asic-world.com/verilog/art_testbench_writing.html
+
+You may also like to check out my personal way of writing testbenches, which I
+find a lot easier. It's in 
+simulation_idioms/how_marco_likes_to_write_testbenches/
+
+Have fun!

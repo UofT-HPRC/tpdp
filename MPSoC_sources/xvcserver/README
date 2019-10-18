@@ -1,0 +1,4 @@
+This is a modified version of the Xilinx PCIe XVC server.
+
+Clark made it possible to use from inside the MPSoC. See the "Using ILAs"
+section of trials_and_tribulations_of_programming_the_mpsoc.txt

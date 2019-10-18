@@ -1,0 +1,95 @@
+psgrep() {
+	pattern=$(echo $1 | sed -r 's/(.)(.*)/\[\1\]\2/')
+	ps aux | grep "$pattern"
+}
+killxvc() {
+	pid=$(psgrep 'xvcserver' | awk '{print $2}')
+	if [ ! -z $pid ]; then
+		kill -9 $pid
+	fi
+}
+
+alias cd.="cd .."
+alias cd..="cd ../.."
+alias va="vi ~/.bash_aliases"
+alias sc="source ~/.bashrc"
+alias vc="vi ~/.bashrc"
+alias program="killxvc; echo $1 > /sys/class/fpga_manager/fpga0/firmware"
+#alias program="echo $1 > /sys/class/fpga_manager/fpga0/firmware"
+alias dtboprogram="mkdir /configfs/device-tree/overlays/full; echo $1 > /configfs/device-tree/overlays/full/path"
+alias dtboreprogram="rmdir /configfs/device-tree/overlays/full; mkdir /configfs/device-tree/overlays/full; echo $1 > /configfs/device-tree/overlays/full/path"
+alias firmlist="ls /lib/firmware"
+alias mountoverlay="mount -t configfs configfs /configfs"
+pci_remove() {
+	for d in `find /sys/bus/pci/devices -mindepth 1 -maxdepth 1`; do
+		echo "remove $(basename $d)"
+		echo 1 > "${d}/remove"
+	done
+}
+
+offload_ovelay() {
+	pci_remove
+	if [ -e /configfs/device-tree/overlays/full ]; then
+		rmdir /configfs/device-tree/overlays/full
+	fi
+}
+
+overlay_program() {
+	if [ ! -e /configfs/device-tree ]
+		then
+			mountoverlay
+			dtboprogram $1
+	elif [ ! -e /configfs/device-tree/overlays/full ]
+		then
+			dtboprogram $1
+	else
+		pci_remove
+		dtboreprogram $1
+	fi
+}
+set_clocks()
+{
+        local clka=${1-100}
+        local clkb=${2-0}
+        local clkc=${3-0}
+        local clkd=${4-0}
+        if [ $clka -ge 1 ]; then
+                echo $clka > /sys/mpsoc/clocks/fclk0/frequency
+                echo 1 > /sys/mpsoc/clocks/fclk0/enable
+                local output=$( cat /sys/mpsoc/clocks/fclk0/frequency )
+                echo "fclk0 set to $output and enabled"
+        else
+                echo 0 > /sys/mpsoc/clocks/fclk0/enable
+                echo "fclk0 is disabled"
+        fi
+        if [ $clkb -ge 1 ]; then
+                echo $clkb > /sys/mpsoc/clocks/fclk1/frequency
+                echo 1 > /sys/mpsoc/clocks/fclk1/enable
+                local output=$( cat /sys/mpsoc/clocks/fclk1/frequency )
+                echo "fclk1 set to $output and enabled"
+        else
+                echo 0 > /sys/mpsoc/clocks/fclk1/enable
+                echo "fclk1 is disabled"
+        fi
+        if [ $clkc -ge 1 ]; then
+                echo $clkc > /sys/mpsoc/clocks/fclk2/frequency
+                echo 1 > /sys/mpsoc/clocks/fclk2/enable
+                local output=$( cat /sys/mpsoc/clocks/fclk2/frequency )
+                echo "fclk2 set to $output and enabled"
+
+        else
+                echo 0 > /sys/mpsoc/clocks/fclk2/enable
+                echo "fclk2 is disabled"
+                fi 
+        if [ $clkd -ge 1 ]; then
+                echo $clkd > /sys/mpsoc/clocks/fclk3/frequency
+                echo 1 > /sys/mpsoc/clocks/fclk3/enable
+                local output=$( cat /sys/mpsoc/clocks/fclk3/frequency )
+                echo "fclk3 set to $output and enabled"
+
+        else
+                echo 0 > /sys/mpsoc/clocks/fclk3/enable
+                echo "fclk3 is disabled"
+        fi
+}
+
