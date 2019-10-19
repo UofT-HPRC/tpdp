@@ -5,8 +5,9 @@ on many things being in place. This file is meant to help you deal with that.
 
 Still though: prepare for great pain and suffering.
 
+=====
 TL;DR
------
+=====
 
 The list of commands I end up using:
 
@@ -28,8 +29,9 @@ $ set_clocks freq1 [freq2] [freq3] [freq4]
 $ cd /lib/firmware
 $ overlay_reprogram my.dtbo
 
+========
 OVERVIEW 
---------
+========
 
 First, you need to make sure your MPSoC is running Linux in the exact way Clark
 set it up. From now on, I will make this assumption. I do not know how to get
@@ -71,8 +73,9 @@ out a few things in the sections at the end of this document.
 
 No, there is no easier way.
 
+=====================
 GETTING THE .BIN FILE 
----------------------
+=====================
 
 I don't really know why we need a .bin instead of a .bit; I only know that the
 code in the Linux kernel needs the bitstream to be in a ".bin" format in order
@@ -98,9 +101,9 @@ all:
 Make sure my_bitstream.bit is in the same folder as the specific.bif file.
 
 
-
+======================
 DEVICE TREE ACROBATICS 
-----------------------
+======================
 
 You also need to make a "device tree overlay". This involves writing a file in
 a special language, then compiling it to a special binary file the Linux kernel
@@ -315,9 +318,9 @@ distros have a "dtc" package in their official repos.
 $ dtc -O dtb -o my_output.dtbo -b 0 -@ my_thing.dtsi
 
 
-
+=============================
 ACTUALLY PROGRAMMING THE FPGA 
------------------------------
+=============================
 
 You need a lot of stuff in place for this to work. 
 - Clark's Linux setup should have all the necessary drivers for PCAP (PCAP is 
@@ -348,6 +351,8 @@ will need to perform the following steps:
    /configfs with some device tree stuff in it. If not, run:
 
    $ mountoverlay
+   
+   (You don't need to do this step if you use clark's or my aliases file)
 
 3. Copy your .bin and .dtbo files into /lib/firmware. I don't really know why
    we have to do this; I guess something about the device tree and search paths 
@@ -374,9 +379,9 @@ will need to perform the following steps:
    something like "1 transmit and 1 receive channel found" in dmesg.
 
 
-
+==========
 USING ILAS
-----------
+==========
 
 Again, I am assuming you are using the system that Clark has put in place. It 
 should contain a program called "xvcserver", which I think is a modified version
@@ -416,10 +421,35 @@ $ xvcserver -a 0xA0010000 -d
    the old one, and you are straight outta luck!
 
 
-
+======================
 PS TO PL COMMUNICATION
-----------------------
+======================
 
 This is a little complicated. Here is a summary of the many moving parts:
 
- - The AXI DMA IP core: 
+ - The AXI DMA IP core: this is something you add to your FPGA design. It will
+   plug into the Zynq block. Setting its parameters is complicated, and I don't
+   know all the details yet
+   
+ - The Xilinx AXI DMA driver: this allows the kernel to acess the IP core
+ 
+ - The DMAEngine system: this is an API used by Linux kernel code. It is not
+   accessible by user space code. The purpose of the Xilinx AXI DMA driver is to
+   register some stuff into the DMAEngine system so that calls to the DMAEngine
+   API (by other drivers) can eventually trigger the AXI DMA IP core
+ 
+ - The axidma driver: this is the driver written by the Carnegie Melon students.
+   It uses the DMAEngine API (which is itself using the Xilinx driver) and 
+   creates device files that you can use from user space
+ 
+ - The axidma user API library: this is a user mode shared library that makes it
+   a little easier to use the axidma driver. It essentially converts the low
+   level details of reading/writing from the driver into a nice-ish API.
+ 
+ - The device tree. Without a correct device tree, the Xilinx driver and axidma
+   driver will not work.
+
+At the moment I don't know the details of setting up the IP core, and I'm not
+really familiar with the axidma API library. And by the way, I'm pretty sure
+Clark and Camilo modified the axidma API library so that it also works with the
+MPSoC drivers that Clark wrote (see MPSoC_sources/drivers)
