@@ -1,0 +1,85 @@
+I'm in the middle of researching how to write a Linux driver that will respond 
+to changes in the device tree.
+
+What I've discovered is the following: in <linux/of.h> there is are two functions:
+int of_reconfig_notifier_register(struct notifier_block *nb);
+int of_reconfig_notifier_unregister(struct notifier_block *nb);
+
+(This uses the kernel's notifications API, which is actually used by many 
+different subsystems).
+
+To use it, you fill a struct notifier_block:
+
+struct notifier_block my_notifier = {
+	.notifier_call = my_callback
+};
+
+Your callback will have this signature:
+
+int my_callback(struct notifier_block *nb, unsigned long action, void *arg);
+
+When the device tree overlay system of the kernel calls this function, 
+
+- nb will point to your original notifier block that you registered
+
+- action will be one of:
+  - OF_RECONFIG_ATTACH_NODE
+  - OF_RECONFIG_DETACH_NODE
+  - OF_RECONFIG_ADD_PROPERTY
+  - OF_RECONFIG_REMOVE_PROPERTY
+  - OF_RECONFIG_UPDATE_PROPERTY
+
+- arg will be a point to a struct of_reconfig_data (shown below)
+
+
+Reference of structure types:
+
+struct of_reconfig_data {
+	struct device_node	*dn;
+	struct property		*prop;
+	struct property		*old_prop;
+};
+
+struct device_node {
+	const char *name;
+	phandle phandle;
+	const char *full_name;
+	struct fwnode_handle fwnode;
+
+	struct	property *properties;
+	struct	property *deadprops;	/* removed properties */
+	struct	device_node *parent;
+	struct	device_node *child;
+	struct	device_node *sibling;
+#if defined(CONFIG_OF_KOBJ)
+	struct	kobject kobj;
+#endif
+	unsigned long _flags;
+	void	*data;
+#if defined(CONFIG_SPARC)
+	unsigned int unique_id;
+	struct of_irq_controller *irq_trans;
+#endif
+};
+
+struct property {
+	char	*name;
+	int	length;
+	void	*value;
+	struct property *next;
+#if defined(CONFIG_OF_DYNAMIC) || defined(CONFIG_SPARC)
+	unsigned long _flags;
+#endif
+#if defined(CONFIG_OF_PROMTREE)
+	unsigned int unique_id;
+#endif
+#if defined(CONFIG_OF_KOBJ)
+	struct bin_attribute attr;
+#endif
+};
+
+
+So basically, I'm looking for something that deals with a device node whose name
+is something like fclk0, and for an action like OF_RECONFIG_UPDATE_PROPERTY. The
+new value will be pointed at be prop.value, but it may be stored as a string and
+not an int. I will have to verify this.
