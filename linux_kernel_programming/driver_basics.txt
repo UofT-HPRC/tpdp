@@ -131,10 +131,11 @@ as license and author info)
 
 ////////////////////////////////////////////////////////////////////////
 
+#include <linux/fs.h> //struct file, struct file_operations
 #include <linux/init.h> //for __init, see code
 #include <linux/module.h> //for module init and exit macros
 #include <linux/miscdevice.h> //for misc_device_register and struct micdev
-#include <linux/kernel.h> //For copy_to_user, see code
+#include <linux/uaccess.h> //For copy_to_user, see code
 
 ///////////////// PART 1: DEFINING OUR FILE OPERATIONS /////////////////
 
@@ -156,7 +157,7 @@ static int our_open (struct inode *inode, struct file *filp) {
 	//and the second is the struct file that describes it. In particular,
 	//its file_operations struct points to our file operations struct
 	
-	if (filp->file_operations == &our_fops) {
+	if (filp->f_op == &our_fops) {
 		printk(KERN_ALERT "Opened our device file! Everything looks okay!\n");
 	} else {
 		printk(KERN_ERR "Opened our device file, but something looks wrong...\n");
@@ -197,17 +198,16 @@ static ssize_t our_read (struct file *filp, char __user *buf, size_t sz, loff_t 
 	
 	//We must return the number of bytes we wrote into the user's buffer
 	
-	static char msg[] = "Lorem Ipsum";
+	static char msg[] = "Lorem Ipsum\n";
 	#define msg_len (sizeof(msg))
 	
 	//The user could want to read something much larger than the message,
 	//or much smaller. We need to be flexible and be able to read the
 	//message in parts (and without going out of bounds)
-	int sz_left = (msg_len - *off);
+	int sz_left = (int)msg_len - (int)*off; //Casting to int for safety
 	
-	int sz_to_send = sz;
-	
-	if (sz_to_send < sz_left) sz_to_send = sz_left;
+	//Pick the minimum of sz or sz_left
+	int sz_to_send = (int) sz > sz_left ? sz_left : sz;
 	
 	if (sz_to_send <= 0) {
 		//The user has read the entire message. First, reset the offset...
@@ -222,7 +222,7 @@ static ssize_t our_read (struct file *filp, char __user *buf, size_t sz, loff_t 
 		copy_to_user(buf, msg + *off, sz_to_send);
 		
 		//Maintain the offset
-		*loff += sz_to_send;
+		*off += sz_to_send;
 		
 		//We wrote sz_to_send bytes
 		return sz_to_send;
@@ -233,12 +233,12 @@ static ssize_t our_read (struct file *filp, char __user *buf, size_t sz, loff_t 
 
 //This struct contains all the details needed to hook up our operations
 //to a real file in the filesystm
-static struct miscdev our_miscdev = { 
+static struct miscdevice our_miscdev = { 
 	.minor = MISC_DYNAMIC_MINOR, 
 	.name = "our_driver",
-	.fops = our_fops,
+	.fops = &our_fops,
 	.mode = 0666
-}
+};
 
 //Something I haven't talked about yet: every device file has unique 
 //device numbers. They consist of a "major number" and a "minor number",
@@ -262,21 +262,21 @@ static struct miscdev our_miscdev = {
 //The next step is to actually register our driver. This will be done in
 //the module init function in the next section. However, we need to keep
 //track of when we have been succesfully registered or not:
-int registered = 0;
+static int registered = 0;
 
 /////////////////// PART 3: MAKING IT INTO A MODULE ////////////////////
 
 //The __init is some magic compiler directive that tells it to free the
 //memory used for this function once it is run. Init functions are only
 //ever run once, so there's no need to keep them around
-static int __init my_init(void) { 
+static int __init our_init(void) { 
 	//The init function is the perfect place to register our driver
 	//(actually, it's the only place that makes sense)
 	
-	int err = misc_device_register(&our_miscdev);
+	int err = misc_register(&our_miscdev);
 	if (err < 0) {
 		printk(KERN_ERR "Could not register misc device\n");
-	else {
+	} else {
 		printk(KERN_ALERT "Hello, world!\n"); 
 		registered = 1;
 	}
@@ -284,21 +284,20 @@ static int __init my_init(void) {
 	return err; //Propagate error code
 } 
 
-static void my_exit(void) { 
+static void our_exit(void) { 
 	//In order to be good citizens, we free up resources when we're not
 	//using them, so unregister our device file
 	
-	int err = 0;
-	if (registered) err = misc_dev_unregister(&our_miscdev);
+	if (registered) misc_deregister(&our_miscdev);
 	
 	printk(KERN_ALERT "Goodbye, cruel world!\n"); 
-	return err;
 } 
 
 MODULE_LICENSE("Dual BSD/GPL"); 
 
-module_init(my_init); 
-module_exit(my_exit);
+module_init(our_init); 
+module_exit(our_exit);
+
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -311,6 +310,19 @@ module_exit(my_exit);
 // -----------
 
 /*
+(See next note for compilation details)
+
+To use this module, I recommend opening a separate terminal and running
+$ dmesg -w
+which will give you a live view of kernel messages.
+
+Then in a separate terminal, run:
+$ sudo insmod our_device.ko
+$ cat /dev/our_device
+$ sudo rmmod our_device
+*/
+
+/*
 As hinted earlier, compiling modules is not a simple job; the machine 
 code has to be put together in a very particular way. Luckily, the 
 kernel developers have come up with a relatively painless way to do 
@@ -320,7 +332,7 @@ the details of using it, but for simple drivers, it looks like this:
 
 # If KERNELRELEASE is defined, we've been invoked from the # kernel build system and can use its language. 
 ifneq ($(KERNELRELEASE),) 
-	obj-m := chardev.o 
+	obj-m := NAME_OF_YOUR_C_FILE.o 
 # Otherwise we were called directly from the command 
 # line; invoke the kernel build system. 
 else 
