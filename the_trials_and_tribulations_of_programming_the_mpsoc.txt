@@ -104,7 +104,7 @@ DEVICE TREE ACROBATICS
 
 You also need to make a "device tree overlay". This involves writing a file in
 a special language, then compiling it to a special binary file the Linux kernel
-will understand. Writing the overlay is EXTREMELY DIFFICULT; I have done my
+will understand. Coding up the overlay is EXTREMELY DIFFICULT; I have done my
 best to explain what I know about it. Compiling the file is easy, but you need
 to have the device tree compiler installed. Most Linux distributions have a
 "dtc" package in their official repos.
@@ -112,20 +112,20 @@ to have the device tree compiler installed. Most Linux distributions have a
 -> Background on device trees and device tree overlays
 
 "Device trees" is the name given to a technique introduced by OpenFirmware.
-Essentially, you give the Linux kernel a file (called a device tree) with a
-bunch of information about the hardware in your embedded system. Normally, for
-regular embedded systems, this file is created once and placed somewhere where
-the kernel will read it at boot time. This assumes the hardware doesn't change
-at runtime.
+Essentially, you give the Linux kernel a file at boot (called a device tree) 
+with a bunch of info about the hardware in your embedded system. Normally, for
+regular embedded systems, this file is created once and it is assumed that no
+hardware changes will occur (except hotplugging on buses that support it, such 
+as USB).
 
 However, if you are reprogramming an FPGA, then the hardware _is_ changing at
 runtime. It would be a pain in the rear end to reboot the Linux kernel every
 time, so there's another technique called "device tree overlays". Basically,
 you write a .dtsi file and copmile it to a .dtbo file. Then, using a special
 driver that Clark has included with the Linux system, you ask the Linux kernel
-to read in this .dtbo file and essentially "patch" the device tree data it is
-already using. This has the potential to trigger several actions inside the
-Linux kernel (for example, notifying drivers about hardware changes, and we
+to read in this .dtbo file and essentially "patch" the device tree that it is
+already using. This "patch" has the potential to trigger several actions inside 
+the Linux kernel (for example, notifying drivers about hardware changes, and we
 also use it to program the FPGA).
 
 Something you should know: the whole device tree method is still immature. The

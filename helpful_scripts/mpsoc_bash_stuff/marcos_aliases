@@ -13,8 +13,8 @@ killxvc() {
 }
 
 alias program="killxvc; echo $1 > /sys/class/fpga_manager/fpga0/firmware"
-alias dtboprogram="mkdir /sys/kernel/config/device-tree/overlays/full; echo $1 > /sys/kernel/config/device-tree/overlays/full/path"
-alias dtboreprogram="rmdir /sys/kernel/config/device-tree/overlays/full; mkdir /sys/kernel/config/device-tree/overlays/full; echo $1 > /sys/kernel/config/device-tree/overlays/full/path"
+alias dtboprogram="killxvc; mkdir /sys/kernel/config/device-tree/overlays/full; echo $1 > /sys/kernel/config/device-tree/overlays/full/path"
+alias dtboreprogram="killxvc; rmdir /sys/kernel/config/device-tree/overlays/full; mkdir /sys/kernel/config/device-tree/overlays/full; echo $1 > /sys/kernel/config/device-tree/overlays/full/path"
 alias firmlist="ls /lib/firmware"
 
 pci_remove() {
