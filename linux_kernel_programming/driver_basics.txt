@@ -330,22 +330,23 @@ this; they have a special makefile that comes with your kernel, which
 takes care of doing the really complicated stuff. I don't really know 
 the details of using it, but for simple drivers, it looks like this:
 
-# If KERNELRELEASE is defined, we've been invoked from the # kernel build system and can use its language. 
-ifneq ($(KERNELRELEASE),) 
-	obj-m := NAME_OF_YOUR_C_FILE.o 
-# Otherwise we were called directly from the command 
-# line; invoke the kernel build system. 
-else 
-	KERNELDIR ?= /usr/lib/modules/4.19.69-1-MANJARO/build 
-	PWD := $(shell pwd) 
+	# If KERNELRELEASE is defined, we've been invoked from the 
+	# kernel build system and can use its language. 
+	ifneq ($(KERNELRELEASE),) 
+		obj-m := NAME_OF_YOUR_C_FILE.o 
+	# Otherwise we were called directly from the command 
+	# line; invoke the kernel build system. 
+	else 
+		KERNELDIR ?= /usr/lib/modules/$(shell uname -r)/build 
+		PWD := $(shell pwd) 
 
-default: 
-	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules 
+	default: 
+		$(MAKE) -C $(KERNELDIR) M=$(PWD) modules 
 
-clean:
-	$(MAKE) -C $(KERNELDIR) M=$(PWD) clean
-	
-endif
+	clean:
+		$(MAKE) -C $(KERNELDIR) M=$(PWD) clean
+		
+	endif
 
 */
 

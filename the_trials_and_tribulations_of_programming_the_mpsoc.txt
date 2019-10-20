@@ -447,7 +447,7 @@ This is a little complicated. Here is a summary of the many moving parts:
    level details of reading/writing from the driver into a nice-ish API.
  
  - The device tree. Without a correct device tree, the Xilinx driver and axidma
-   driver will not work.
+   driver will not correctly detect the hardware.
 
 At the moment I don't know the details of setting up the IP core, and I'm not
 really familiar with the axidma API library. And by the way, I'm pretty sure

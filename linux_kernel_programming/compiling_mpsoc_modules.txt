@@ -1,0 +1,104 @@
+First, you need the source code for the Linux kernel on the board. I'm not sure
+if it will work, but I just cloned the git repo and I'm using the newest version:
+
+https://github.com/Xilinx/linux-xlnx
+
+You need to configure the kernel for the MPSoC, and after looking it up, I found
+https://xilinx-wiki.atlassian.net/wiki/spaces/A/pages/18842481/Build+kernel#Buildkernel-LinuxforZynqUltraScale+MPSoC
+which says you should do:
+
+$ make ARCH=arm64 xilinx_zynqmp_defconfig
+$ make ARCH=arm64 menuconfig
+
+Well, I'm not really sure you have to do the second one. I didn't change any of
+it, since I didn't know what any of it was
+
+Anyway, then I found this:
+https://github.com/SDU-Embedded/linux_zynq/wiki/Cross-Compiling-Kernel-Modules-for-the-Zynq-7000-Series-Platform
+which says to use this Makefile (I made a few changes):
+
+	export ARCH:=arm
+	export CROSS_COMPILE:=arm-linux-gnueabihf-
+
+	CC=$(CROSS_COMPILE)gcc
+
+	obj-m += NAME_OF_YOUR_C_FILE.o
+
+	KDIR  := path/to/linux-xlnx-zynmp-dt-fixes-for-4.10
+	PWD		:= $(shell pwd)
+
+	default:
+		${MAKE} -C ${KDIR} M=${PWD} modules
+
+	clean:
+		${MAKE} -C ${KDIR} M=${PWD} clean
+
+And no, of course it didn't work! When I tried to build my module, I got this
+hideous error:
+
+	  CC [M]  /home/mahkoe/projects/dtoprinter/dtoprinter.o
+	In file included from ./include/asm-generic/int-ll64.h:11:0,
+			 from ./arch/arm/include/uapi/asm/types.h:5,
+			 from ./include/uapi/linux/types.h:5,
+			 from ./include/linux/compiler.h:169,
+			 from ./include/linux/export.h:45,
+			 from ./include/linux/linkage.h:7,
+			 from ./include/linux/kernel.h:7,
+			 from /home/mahkoe/projects/dtoprinter/dtoprinter.c:1:
+	./include/uapi/asm-generic/int-ll64.h:12:10: fatal error: asm/bitsperlong.h: No such file or directory
+	 #include <asm/bitsperlong.h>
+
+God I hate stuff like that! Some deep problem in someone else's brobdingnagian
+codebase... now what? 
+
+A quick google search suggest I try doing make modules_prepare in the Linux 
+source tree, but that gave me a different arcane error:
+
+	arch/arm64/Makefile:27: ld does not support --fix-cortex-a53-843419; kernel may be susceptible to erratum
+	arch/arm64/Makefile:40: LSE atomics not supported by binutils
+	arch/arm64/Makefile:48: Detected assembler with broken .inst; disassembly will be unreliable
+	  CC      kernel/bounds.s
+	gcc: error: unrecognized command line option ‘-mlittle-endian’
+	make[1]: *** [Kbuild:21: kernel/bounds.s] Error 1
+	make: *** [Makefile:1102: prepare0] Error 2
+
+Ahhh... solved the problem. I was using regular gcc, not the cross-compiler. The
+solution is to export an environemnt variable:
+
+	export CROSS_COMPILE=arm-linux-gnueabihf-
+
+and I should point out that this cross compiler is installed with the Vivado SDK
+(meaning you need to source settings64.sh to be able to use it).
+
+...and that didn't work either. Then after yet another google search, someone
+suggested a different compiler. Sure, why not?
+	
+	export CROSS_COMPILE=aarch64-linux-gnu-
+
+Hey it worked! I wonder if I should change ARCH to arm64 in the Makefile? Let's
+try that:
+
+	export ARCH:=arm64
+	export CROSS_COMPILE:=aarch64-linux-gnu-
+
+	CC=$(CROSS_COMPILE)gcc
+
+	obj-m += NAME_OF_YOUR_C_FILE.o
+
+	KDIR  := path/to/linux-xlnx-zynmp-dt-fixes-for-4.10
+	PWD		:= $(shell pwd)
+
+	default:
+		${MAKE} -C ${KDIR} M=${PWD} modules
+
+	clean:
+		${MAKE} -C ${KDIR} M=${PWD} clean
+
+Unbelievable! It compiled! Now to see if it works... I have a feeling this won't
+since the sources are newer than the kernel we're running... but it's worth a 
+shot.
+
+	insmod: ERROR: could not insert module dtoprinter.ko: Invalid module format
+
+Nope, didn't work... I guess I'll just ask Clark on Monday how he compiles his
+modules.
