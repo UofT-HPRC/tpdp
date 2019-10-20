@@ -310,9 +310,9 @@ that it references some of its entries.
 
 So, put these fragments together, and this is your .dtsi file. Good luck!
 
--> Compiling the .dtso
+-> Compiling the .dtbo
 
-To compile dtsi into dtso, you will need the device tree compiler. Most Linux
+To compile dtsi into dtbo, you will need the device tree compiler. Most Linux
 distros have a "dtc" package in their official repos.
 
 $ dtc -O dtb -o my_output.dtbo -b 0 -@ my_thing.dtsi

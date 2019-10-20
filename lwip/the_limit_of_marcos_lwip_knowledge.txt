@@ -68,13 +68,19 @@ Essentially, it's an optimization.
 Finally, we can use tcp_accept(pcb, accept_callback) to set the function that 
 will be called when a connection to that port is opened from an external host.
 	Now we need to know how to write an accept callback. To be fair, you 
-	can do whatever you want, but here's one way to do it: - The prototype 
-	to the callback is err_t accept_callback(void *arg, struct tcp_pcb 
-	*newpcb, err_t err) - As mentioned before, arg is set using tcp_arg - 
-	newpcb is a newly allocated pcb which represents the newly opened 
-	connection. Your listening pcb is still there, and may yet accept a new 
-	connections - Use tcp_recv(newpcb, recv_callback) to set the callback 
-	for when data is received.
+	can do whatever you want, but here's one way to do it:
+	
+	 - The prototype to the callback is err_t accept_callback(void *arg, 
+	 struct tcp_pcb *newpcb, err_t err)
+	
+	 - As mentioned before, arg is set using tcp_arg
+	
+	 - newpcb is a newly allocated pcb which represents the newly opened 
+	 connection. Your listening pcb is still there, and may yet accept a 
+	 new connections
+	
+	 - Use tcp_recv(newpcb, recv_callback) to set the callback for when 
+	 data is received.
 	
 		Okay... how do you write a receive callback?
 		- The prototype is 
