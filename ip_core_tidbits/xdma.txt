@@ -1,0 +1,2 @@
+I don't know how to use the XDMA IP core, but one day I'm sure I will
+have to. This file will stay here to remind me it's on my to-do list

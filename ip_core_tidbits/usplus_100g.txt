@@ -1,0 +1,27 @@
+If you've ever tried using 100G on the MPSoCs, you would have used a
+"usplus_ethernet_subsystem" IP core. From now on, I will call this the
+100G core. 
+
+The 100G core is actually simpler than you'd expect, but it is still 
+not easy to configure correctly. Over time I want to provide brief 
+explanations for the most important parameters, but first let's start 
+by putting up some reasonable parameters that should just get you 
+started:
+
+===================
+BASIC CONFIGURATION
+===================
+
+First of all, don't use the interfaces from the board file (in the board
+pins tab, leave everything to custom). Sometimes it works, but I find it
+just causes me headaches down the line.
+
+ -> You will not be able to export your block design as a TCL and rebuild
+    it in another project
+ -> On occasion, sometimes it will say "you can't set the CMAC core to 
+    X0Y2", even though you really probably should be able to. This error
+    will not go away until you delete the IP and put it back, which will
+    make you redo the other parts of the configuration and rewire your 
+    stuff.
+
+(to be continued tomorrow)
