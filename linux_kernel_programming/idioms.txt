@@ -91,7 +91,7 @@ The technique would look like this:
 		char *other_splork_data;
 	}
 	
-	struct splork* get_splork_from_splork(struct widget *widg) {
+	struct splork* get_splork_from_widget(struct widget *widg) {
 		struct splork *s = (void *)widg - offsetof(struct splork, w);
 		return s;
 	}
@@ -127,6 +127,8 @@ struct widget pointer passed into our callbacks is always a pointer to
 a struct widget which is inside the memory of a struct splork, we 
 basically just do a little pointer arithmetic to get a pointer to the
 original struct splork. Badda bing badda boom.
+-> The offsetof(type, member) macro is defined in <linux/stddef.h>
+   and does the same thing it does in the standard C library
 
 By the way, I don't like inheritance because I find it makes code very
 difficult to read, the rules are very complicated (especially when it
