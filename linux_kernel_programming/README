@@ -1,18 +1,14 @@
 Start out taking a quick look at idioms.txt. This is a short list of common 
 design patterns used in the linux kernel, and I find that knowing them makes it
-a lot easier to read kernel source code. Anyway, if you ever need to do any
-kernel programming (such as making a driver) it usually boils down to getting 
-the main skeleton in place, copying some code from elsewhere in the kernel, and
-modifying it for your particular use case.
+a lot easier to read kernel source code. 
+
+Anyway, if you ever need to do any kernel programming (such as making a driver)
+it usually boils down to getting the main skeleton in place, copying some code
+from elsewhere in the kernel, and modifying it for your particular use case. 
+I've left a skeleton in basic_driver.c, and the same skeleton is more fully
+explained in driver_basics.txt.
 
 By the way, one of the easiest ways to browse kernel source code is to go to
 https://elixir.bootlin.com/linux/latest/source
 I browse kernel sources on the regular, because often it's the only way to get
 an answer to specific questions.
-
-driver_basics.txt is just meant to tell you the general "flow" of developing a
-simple Linux driver. Of course, driver-writing is quite challenging, and I've
-put all my knowledge of more complicated topics into separate files. 
-
-Well, those are the only files for now. Documentation, as always, is a work in
-progress!
