@@ -20,12 +20,8 @@ create_bd_intf_pin -mode Master -vlnv xilinx.com:display_cmac_usplus:lbus_ports:
 connect_bd_intf_net [get_bd_intf_pins QSFP1/lbus_rx] [get_bd_intf_pins QSFP1/cmac_usplus_0/lbus_rx]
 endgroup
 startgroup
-create_bd_cell -type ip -vlnv xilinx.com:ip:util_ds_buf:2.1 QSFP1/util_ds_buf_0
-endgroup
-connect_bd_net [get_bd_pins QSFP1/cmac_usplus_0/init_clk] [get_bd_pins QSFP1/util_ds_buf_0/IBUF_OUT]
-startgroup
-create_bd_intf_pin -mode Slave -vlnv xilinx.com:interface:diff_clock_rtl:1.0 QSFP1/init_clk
-connect_bd_intf_net [get_bd_intf_pins QSFP1/init_clk] [get_bd_intf_pins QSFP1/util_ds_buf_0/CLK_IN_D]
+create_bd_pin -dir I QSFP1/init_clk
+connect_bd_net [get_bd_pins QSFP1/init_clk] [get_bd_pins QSFP1/cmac_usplus_0/init_clk]
 endgroup
 startgroup
 create_bd_intf_pin -mode Slave -vlnv xilinx.com:interface:diff_clock_rtl:1.0 QSFP1/gt_ref_clk
