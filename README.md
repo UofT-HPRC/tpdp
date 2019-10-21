@@ -1,6 +1,6 @@
 # The PC Group Documentation Project
 
-Yes, we have a wiki. The reason for having this repo is because to spend a 
+Yes, we have a wiki. The reason for this repo is because I want to spend some 
 little time explaining source code as well as uploading helpful bash scripts
 
 # Contents
@@ -8,7 +8,7 @@ little time explaining source code as well as uploading helpful bash scripts
 Right now things are a little unorganized while I figure out how to put it all
 together.
 
-Right now I have this large text file (`the_trials_and_tribulations_of_programming_the_mpsoc.txt`)
+I have this large text file (`the_trials_and_tribulations_of_programming_the_mpsoc.txt`)
 that keeps growing and growing. Some of it references source code in other 
 folders.
 
@@ -26,6 +26,9 @@ I don't really know how to do any of this, so I'll fill these in as I learn them
 
 `helpful_scripts` right now contains some bach aliases used on the MPSoCs, as 
 well as a neat little method Clark uses to compile HLS (I really like it)
+
+`ip_core_tidbits` is just meant to help you get started using some of the really
+complicated IPs, before going into the really long user guides from Xilinx
 
 `linux_kernel_programming` will contain just a few tips and pointers that will
 make it easier to understand Linux kernel source code, and potentially help you
