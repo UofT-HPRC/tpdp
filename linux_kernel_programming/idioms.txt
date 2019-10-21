@@ -1,15 +1,136 @@
-There are three main idioms I want to explain here: the design pattern of 
-callback registration, the Linux device model, and the technique of object
+There are three main idioms I want to explain here: the design pattern 
+of registration, the Linux device model, and the technique of object 
 encapsulation
 
-REGISTERING CALLBACKS
----------------------
+=============================
+REGISTERING STRUCTS/CALLBACKS
+=============================
+
+The Linux kernel has a large number of what you might call "subsystems"
+(for lack of a better word). For example, the PCI subsystem, the
+networking stack, the notification system, etc.
+
+Suppose someone is writing a driver for a splork device, and it uses the
+widgets subsystem. Their driver code will probably look like this (notes
+to follow below):
+
+	#include <linux/widgets.h>
+
+	static int splork_fn1(struct widget *w) {
+		...
+	}
+
+	static int splork_fn2(struct widget *w) {
+		...
+	}
+
+	static struct widget splork_widget = {
+		.fn1 = splork_fn1,
+		.fn2 = splork_fn2,
+		.name = "splork"
+	}
+
+	static int __init splork_init(void) {
+		widget_register(&splork_widget);
+		return 0;
+	}
+	
+	static void splork_exit(void) {
+		widget_unregister(&splork_widget);
+	}
+	
+	module_init(splork_init);
+
+Basically, a subsystem usually has a main *_register method, which takes
+a sepcific type of struct (in this case, a struct widget). The driver
+writer will simply look at the struct's definition, and fill each field
+with whatever they think is right. Then, in the module init function,
+they register a pointer to the struct they filled in.
+
+The nice thing about this is it typically makes it easier to read driver
+code: scroll down to the bottom until you find the struct that's being
+filled. That tells you A) what subsystem the driver is using, and B)
+helps you understand what the most important functions are and what
+they're supposed to be doing.
+
+As a final note, almost all callbacks will take a pointer to a subsystem
+struct as the first argument (in our case, struct widget *). This is
+because you may wish to register more than one widget, but use the same
+function for both. This first argument lets you know which of the 
+widgets was used to trigger the callback. Essentially, it acts as the 
+"this" pointer (like in C++). It also enables the "encapsulation" 
+technique, which is the third idiom described here.
 
 
-
+======================
 THE LINUX DEVICE MODEL
-----------------------
+======================
+
+I haven't found a great way to explain this succinctly, so I'll come 
+back to it.
 
 
+====================
 OBJECT ENCAPSULATION
---------------------
+====================
+
+The Linux kernel is written in C, which doesn't support inheritance 
+(this is for the best, in my opinion). However, there are some cases
+where it would be nice to add some custom data into a struct made by
+someone else.
+
+Take, for example, our splork example from above. struct widget only 
+holds two function pointers and a char *, but what if we wanted to also
+have it keep track of some internal splork data?
+
+The technique would look like this:
+
+	struct splork {
+		int splork_data1;
+		struct widget w;
+		char *other_splork_data;
+	}
+	
+	struct splork* get_splork_from_splork(struct widget *widg) {
+		struct splork *s = (void *)widg - offsetof(struct splork, w);
+		return s;
+	}
+	
+	static int splork_fn1(struct widget *w) {
+		struct splork *s = get_splork_from_widget(w);
+		
+		printk(KERN_ALERT "%d\n", s->splork_data1);
+		...
+	}
+	
+	...
+	
+	static struct splork splork1 = {
+		.splork_data1 = 12,
+		.w = {
+			.fn1 = splork_fn1,
+			.fn2 = splork_fn2,
+			.name = "splork1"
+		},
+		.other_splork_data = "zonk"
+	}
+	
+	int __init splork_init(void) {
+		widget_register(&(splork1.w));
+		return 0;
+	}
+	
+	...
+
+This is very reminiscent of "downcasting" from OOP. Since we know the
+struct widget pointer passed into our callbacks is always a pointer to
+a struct widget which is inside the memory of a struct splork, we 
+basically just do a little pointer arithmetic to get a pointer to the
+original struct splork. Badda bing badda boom.
+
+By the way, I don't like inheritance because I find it makes code very
+difficult to read, the rules are very complicated (especially when it
+comes to constructors and destructors), and often people use it just
+because they learned it in their Java I class, even though it doesn't
+offer any benefit. I actually like this very restricted form of
+inheritance, which I've started calling encapsulation. 

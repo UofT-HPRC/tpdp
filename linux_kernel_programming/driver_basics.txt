@@ -7,8 +7,9 @@ To understand how to write a driver, we need to briefly go on a tangent.
 Don't feel too intimidated by the size of the section: the large three
 indented paragraphs can be skipped.
 
+============================
 THE VIRTUAL FILESYSTEM (VFS)
-----------------------------
+============================
 
 What happens when you open, read, write, close, etc. a file? Normally, 
 this triggers reads and writes to the hard drive, but Linux's design is 
@@ -93,8 +94,9 @@ and so on. Importantly, our functions run in the kernel, with full
 permission to do whatever we want with the hardware.
 
 
+============================================
 THE BASIC PARTS OF A CHARACTER DEVICE DRIVER
---------------------------------------------
+============================================
 
 We want to do three things:
 
