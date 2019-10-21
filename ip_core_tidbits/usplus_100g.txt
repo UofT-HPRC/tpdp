@@ -1,19 +1,20 @@
-If you've ever tried using 100G on the MPSoCs, you would have used a
-"usplus_ethernet_subsystem" IP core. From now on, I will call this the
-100G core. Please note that this document is written mostly for MPSoCs
-and using Vivado 2018.3. 
+If you've ever tried using 100G on the MPSoCs, you would have used an 
+"Ultrascale+ 100G Ethernet Subsystem" IP core. From now on, I will call 
+this the 100G core. Please note that this document is written mostly 
+for MPSoCs and using Vivado 2018.3. 
 
 The 100G core is actually simpler than you'd expect, but it is still 
 not easy to configure correctly. Over time I want to provide complete 
-explanations for all the parameters, but for now I'll just tell you the 
-bare minimum needed to get started.
+explanations for all the parameters, but at the moment I don't know 
+what half of them do.
 
 Real quick before we get going: clone Clark's GULF Stream repo from
 	https://github.com/UofT-HPRC/GULF-Stream 
 and run
 	$ make loopback_example
-This will generate a Vivado project which shows you an example of using
-the 100G core.
+This will generate a Vivado project which shows you an example of using 
+the 100G core. This isn't necessary, but it's helpful to use it as a 
+reference.
 
 =============
 CONFIGURATION
@@ -56,19 +57,20 @@ GT Refclk:
 	QFSP1. I got this information from page 34 of the Sidewinder manual,
 	January 2018 version: 
 	https://solutions.inrevium.com/products/pdf/SW100_003_UserGuide_1_0e.pdf
+	See "Writing the Constraints File", below.
 
 Operation:
 	Here we use duplex, because that's what we're doing. You can use 
 	whatever you want.
 
 GT DRP/init clk: 
-	Type in 200 MHz. Someone once told me this is because the core needs
-	a clock it can use before it can recover one from incoming data. So,
-	the Fidus people put a 200 MHz oscillator on pins N13 (+) and M13.
-	You could also use any of the other clocks on the board, but this
-	one works for us. (Note: you have to set the IOSTANDARD to LVDS_25
-	to use these pins, but for some reason you don't have to do it for
-	the QFSP refclk pins).
+	Type in 200 MHz. Someone once told me that this is clock is needed 
+	to drive the core before it's able to drive itself. So, the Fidus 
+	people put a 200 MHz oscillator on pins N13 (+) and M13. You could 
+	also use any of the other clocks on the board, but this one works 
+	for us. (Note: you have to set the IOSTANDARD to LVDS_25 to use 
+	these pins, but for some reason you don't have to do this for the 
+	QFSP refclk pins. See "Writing the Constraints File", below).
 
 Enable TX OTN interface:
 	We don't have this on. I don't know what it is.
@@ -76,19 +78,20 @@ Enable TX OTN interface:
 Link layer section:
 	I guess this has to do with ECC, but I don't know how you figure out
 	what to put in here. Here are the settings Clark uses:
-	TX Frame CRC = Enable FCS Insertion
-	Enable TX Lane0 VLM BIP7 Override Port = (unchecked)
-	RX Frame CRC = Enable FCS Stripping
-	Max Pkt Len = 9600
-	Min Pkt Len = 64
-	Check Preamble = (checked)
-	Check SFD = (checked)
-	Process LFI = (unchecked)
+	
+	TX Frame CRC							= Enable FCS Insertion
+	Enable TX Lane0 VLM BIP7 Override Port	= (unchecked)
+	RX Frame CRC							= Enable FCS Stripping
+	Max Pkt Len								= 9600
+	Min Pkt Len								= 64
+	Check Preamble							= (checked)
+	Check SFD								= (checked)
+	Process LFI								= (unchecked)
 
 Flow Control:
-	Essentially, Clark doesn't use flow control, since part of his
-	research is to do it himself. Because I didn't really know what to
-	do, I just copied him. But maybe I've been needing flow control this
+	Essentially, Clark doesn't enable flow control, since part of his 
+	research is to do it himself. I've just been copying him because I 
+	don't know better, but maybe I've been needing flow control this 
 	whole time...
 
 IEE PTP 1588v2
@@ -123,8 +126,8 @@ The output of the GTY is essentially the raw bits. These raw bits are
 fed into a CMAC (C for roman numeral 100, MAC for Media Access Control) 
 which is another hardened core in the FPGA fabric. Indeed, it's the 
 core which is represented by the 100G core we're configuring. The GTYs 
-are not directly connected to the CMACs; they use regular FPGA routing 
-to do that. You use this tab to configure the connections.
+are NOT directly connected to the CMACs; they use regular FPGA routing 
+to make the connection. You use this tab to configure the connections.
 
 According to the Sidewinder manual (page 26) QSFP0 is connected to GTYs 
 X0Y12 thru X0Y15, and QSFP1 is connected to GTYs X0Y16 thru X0Y19. Also 
@@ -147,14 +150,15 @@ Shared Logic:
 
 Advanced Options:
 	I left everything at the defaults. This means:
-	RX Insertion Loss at Nyquist (dB) = 12
-	RX Equalization Mode = Auto
-	RX GT Buffer = Enable
-	RX GT Buffer Byppas Mode = (grayed out)
-	PLL Type = QPLL0
-	Enable Pipeline Registers = (unchecked)
+	
+	RX Insertion Loss at Nyquist (dB)	= 12
+	RX Equalization Mode				= Auto
+	RX GT Buffer						= Enable
+	RX GT Buffer Byppas Mode			= (grayed out)
+	PLL Type							= QPLL0
+	Enable Pipeline Registers			= (unchecked)
 		-> This option has never helped improve timing
-	Enable Additional ... Ports = (unchecked)
+	Enable Additional ... Ports			= (unchecked)
 
 
 RS-FEC TRANSCODE BYPASS TAB
@@ -168,9 +172,11 @@ BASIC WIRING
 ============
 
 This is very tedious. Anyway, I'll go through each port and explain what
-to give it for a really basic setup. If you don't have a port which is
-mentioned here, or if you have a port that is not mentioned here, it
-means that you should double check your configuration.
+to give it for a really basic setup. 
+
+If you /don't/ have a port that /is/ mentioned here, or
+if you /have/ a port that /is not/ mentioned here, 
+it means that you should double-check your configuration.
 
 INPUTS
 ------
@@ -186,8 +192,10 @@ lbus_tx:
 
 ctl_tx:
 	Expand this interface, and connect the ports as follows:
-	ctl_tx_enable = constant 1. 
-	everything else = constant 0.
+	
+	ctl_tx_enable	= constant 1. 
+	everything else	= constant 0.
+	
 	Basically, this says "leave the transmitter on and don't fiddle 
 	around with all that other junk"
 
@@ -196,7 +204,7 @@ ctl_rx:
 
 core_drp:
 	I really don't know what any of this is. Constant 0 to turn it all 
-	off (and don't use the outputs). this is tedious because you have to
+	off (and don't use the outputs). This is tedious because you have to
 	make some extra constant IPs with the right widths.
 
 gt_loopback_in:
@@ -221,6 +229,7 @@ drp_clk:
 	Constant zeros. Although, I wonder what that preamble is about? We
 	always turn on "check preamble", so I wonder why we can just set it
 	to zero?
+
 
 OUTPUTS
 -------
@@ -278,9 +287,11 @@ gt_txusrclk2:
 	
 	Camilo has told me that gt_rx_usrclk2 doesn't work, so I shouldn't
 	use it (and Clark doesn't use gt_rx_usrclk2 either). I don't know 
-	anything more than that (and I certainly don't know what the 2 is
-	about)
+	anything more than that, and I certainly don't know what the 2 is
+	about
 
+gt_rxusrclk2:
+	Ignore it. Pretend it isn't there. Apparently it's broken.
 
 rx_clk:
 	This is an input to the core. Connect this to gt_txusrclk2.
@@ -293,10 +304,10 @@ rx_clk:
 
 init_clk:
 	This input is just a wire, but we need to drive it from a 
-	differential pair. All you need to do is make a Utility Buffer IP,
-	connect the buffer's output to this pin, and make the buffer's input
-	external. We will use constraints to map the input to the correct
-	pin on the FPGA.
+	differential pair. All you need to do is make a Utility Buffer IP, 
+	connect the buffer's output to this pin, and make the buffer's 
+	input external. We will use constraints to map the buffer's input 
+	to the correct pins on the FPGA.
 
 gt_rxrecclk_out:
 	These are the recovered clocks for all four 25G connections in the
@@ -353,34 +364,36 @@ the "Basic Wiring" section for details; Clark made them external in the
 loopback example), and the init_clk pins.
 
 The corresponding contraints file looks like this:
+
+	# sidewinder_100G.xdc
 	
-	#200 MHz init clk
+	# 200 MHz init clk
 	create_clock -period 5.000 [get_ports init_clk_p]
 	set_property PACKAGE_PIN N13 [get_ports init_clk_p]
 	set_property PACKAGE_PIN M13 [get_ports init_clk_n]
 	set_property IOSTANDARD LVDS_25 [get_ports init_clk_p]
 	set_property IOSTANDARD LVDS_25 [get_ports init_clk_n]
 	
-	#322 MHz QSFP0 ref clk
+	# 322 MHz QSFP0 ref clk
 	create_clock -period 3.103 [get_ports gt_ref_clk_p]
 	set_property PACKAGE_PIN R32 [get_ports gt_ref_clk_p]
 	set_property PACKAGE_PIN R33 [get_ports gt_ref_clk_n]
 	
 The create_clock command essentially tells Vivado that we use this port 
-as a clock of a certain frequency, which it will use when making place
-and route decisions (and when checking timing closure).
+as a clock of a certain frequency. Vivade uses this info  when making 
+place&route decisions (and when checking timing closure).
 
 Setting the PACKAGE_PIN property is how we tell Vivado which pin to 
-connect that port to.
+connect that wire to on the board (unsurprisingly).
 
 For some reason, you need to set the IOSTANDARD on the init_clk but not
-on the gt_refclk. Anyway, this is what Clark does ant it works.
+on the gt_refclk. Anyway, this is what Clark does and it works.
 
 By the way, if you are using QSFP1 in your project, you might add 
 something like this to that constriants file (depending on the exact 
 names generated by the HDL wrapper):
 
-	#322 MHz QSFP1 ref clk
+	# 322 MHz QSFP1 ref clk
 	create_clock -period 3.103 [get_ports gt_1_ref_clk_p]
 	set_property PACKAGE_PIN L33 [get_ports gt_1_ref_clk_n]
 	set_property PACKAGE_PIN L32 [get_ports gt_1_ref_clk_p]
