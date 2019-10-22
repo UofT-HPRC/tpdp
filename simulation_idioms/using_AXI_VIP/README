@@ -1,41 +1,41 @@
 INTRO
 -----
 
-Sometimes you need to simulate something that uses AXI Lite or AXI Full. 
-To write all your own drivers for the bus signals is not a good way to do it;
-unless you're an expert and have 16 GB of RAM installed in your brain, there's
-pretty much no chance your drivers will be correct. Anyway, it would be extremely
-tedious.
+Sometimes you need to simulate something that uses AXI Lite or AXI 
+Full. To write all your own drivers for the bus signals is not a good 
+way to do it; unless you're an expert and have 16 GB of RAM installed 
+in your brain, there's pretty much no chance your drivers will be 
+correct. Anyway, it would be extremely tedious.
 
-There is a very crappy way of doing simulations with AXI which is still a lot 
-easier: using the AXI Verification IP. It's only crappy in that the programming
-interface is very clunky and was probably designed by an OOP zealot in the late
-90s, but otherwise it's not too difficult. That method will be described in this
-file.
+There is a very crappy way of doing simulations with AXI which is still 
+a lot easier: using the AXI Verification IP. It's only crappy in that 
+the programming interface is very clunky and was probably designed by 
+an OOP zealot in the late 90s, but otherwise it's not too difficult. 
+That method will be described in this file.
 
-However, please note that Varun Sharma has come up with a much better way of 
-doing simulations in general, and it also makes it a lot easier to simulate AXI
-buses too: sonar. Essentially it uses Python to generate the messy Verilog you
-have to write to get it to work. Once I figure out how to use it myself, I can
-write up a little tutorial.
+However, please note that Varun Sharma has come up with a much better 
+way of doing simulations in general, and it also makes it a lot easier 
+to simulate AXI buses too: sonar. Essentially it uses Python to 
+generate the messy Verilog you have to write to get it to work. Once I 
+figure out how to use it myself, I can write up a little tutorial.
 
 TUTORIAL
 --------
 
-Actually, I haven't done this in a little while, so I should refresh my memory
-before I get into details. But basically, the way I like to do it is to make a
-SEPARATE block diagram which connects the VIP to my design. If my design is a
-block diagram itself, then I will package it as an IP. It seems like extra 
-trouble but it is BY FAR the cleanest way to do it.
+Actually, I haven't done this in a little while, so I should refresh my 
+memory before I get into details. But basically, the way I like to do 
+it is to make a SEPARATE block diagram which connects the VIP to my 
+design. If my design is a block diagram itself, then I will package it 
+as an IP. It seems like extra trouble but it is BY FAR the cleanest way 
+to do it.
 
-After that there is a longish PDF and some auto-generated HTML docs out on the 
-internet which, together, serve to explain how to use the VIP. I'm going to try
-to distill all that mumbo jumbo, but I forget the specifics of it... for now 
-here is a pointer to these resources:
+After that there is a longish PDF and some auto-generated HTML docs out 
+on the internet which, together, serve to explain how to use the VIP. 
+I'm going to try to distill all that mumbo jumbo, but I forget the 
+specifics of it... for now here is a pointer to these resources:
 
 https://www.xilinx.com/support/documentation/ip_documentation/axi_vip/v1_1/pg267-axi-vip.pdf
 (especially check chapter 6)
 
-https://www.xilinx.com/support/answers/70620.html
-(download the zip file. It contains a bunch of HTML files you can open in your
-browser)
+https://www.xilinx.com/support/answers/70620.html (download the zip 
+file. It contains a bunch of HTML files you can open in your browser)

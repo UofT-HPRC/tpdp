@@ -1,7 +1,8 @@
 One does not simply upload a bitstream.
 
-The steps to reprogramming the MPSoC are frustratingly convoluted, and depend
-on many things being in place. This file is meant to help you deal with that.
+The steps to reprogramming the MPSoC are frustratingly convoluted, and 
+depend on many things being in place. This file is meant to help you 
+deal with that.
 
 Still though: prepare for great pain and suffering.
 
@@ -36,125 +37,147 @@ OVERVIEW
 First, you need to make sure your MPSoC is running Linux in the exact way Clark
 set it up. From now on, I will make this assumption. I do not know how to get
 this system working, but I do know it includes:
- - The special drivers that let you apply device tree overlays
- - The special drivers that allow the kernel to reprorgam the FPGA (something
-   to do with PCAP)
- - The special drivers used for setting the PS's output clocks
- - The XVC server needed to access ILAs from a remote copmuter
- - I also think there are some special drivers for dealing with other low-level
-   mpsoc stuff, but I don't know what they do
+
+ - The drivers that apply device tree overlays
+ 
+ - The drivers that allow reprogramming the FPGA
+   
+ - The drivers used for setting the PS's output clocks (mpsoc_PSRegs.ko)
+ 
+ - The mpsoc_axiregs.ko driver
+ 
+ - (Optional) The XVC server, which allows remote access to ILAs
+ 
 
 And if you plan to use the PS to PL communication...
- - Xilinx's "driver" for AXI DMA cores (note: internally, Linux uses something
-   called the DMAEngine API. This "driver" does not actually make any device
-   files; it only extends the capabilities of the DMAEngine API, which other 
-   drivers can use)
- - axidma.ko: a special driver that uses the kernel's internal DMAEngine API
-   and makes device files you can access from userspace. (This is explained in
-   detail in the "PS to PL" stuff). This was not made by Xilinx; instead, it
-   was made by Brandon Perez and Jared Choi. It is extremely good, and these
-   guys actually documented a lot of the arcane wizardry needed to use the
-   Xilinx driver
- - Some usermode libraries that make it "easier" to interface with the axidma
-   library (which is itself making it possible to use Xilinx's AXI DMA driver)
 
-Programming the FPGA requires a .bin file and a .dtbo file. The .bin file
-instructions are in the next section, and the .dtbo instructions are in the
-"Device Tree Acrobatics" section.
+ - Linux kernel support for AXI DMA IP cores. This is provided by Xilinx.
+   It DOES NOT make device files, it only allows /other kernel code/ to 
+   use the DMA core. I call this the "Xilinx AXI DMA kernel API"
+   
+ - axidma.ko: a driver that uses the Xilinx AXI DMA kernel API and 
+   makes the device files you can use from userspace. It was made by 
+   Brandon Perez and Jared Choi (not Xilinx). It is extremely good, and 
+   these guys actually documented a lot of the arcane wizardry needed 
+   to use the Xilinx stuff
+   
+ - (Optional) Some usermode libraries that provide an API on top of the 
+   axidma driver.
 
-Once you have these two files, you need to jump through several complicated
-hoops to get your bitstream programmed in the actual FPGA fabric. These are
-detailed in the "Actually programming the FPGA" section.
+Programming the FPGA requires a .bin file (see next section) and a 
+.dtbo file ("Device Tree Acrobatics" section).
 
-With any luck you'll get the bitstream uploaded, but you're still not done! If
-you want to use ILAs, or you want to write code that communicates to your
-design, there are a million more things for you to do, and I've tried to point
-out a few things in the sections at the end of this document.
+Once you have these two files, there are several steps to putting them 
+in the FPGA. See "Actually programming the FPGA".
 
-No, there is no easier way.
+I've also added quick sections on using ILAs and PS-to-PL 
+communication, but this is just for completeness. Camilo has written 
+much better tutorials, which you can find on the main page of our wiki.
+
+Good luck!
 
 =====================
 GETTING THE .BIN FILE 
 =====================
 
-I don't really know why we need a .bin instead of a .bit; I only know that the
-code in the Linux kernel needs the bitstream to be in a ".bin" format in order
-to reprogram the FPGA.
+I don't know why, but the code in the Linux kernel needs the bitstream 
+to be in a ".bin" format in order to reprogram the FPGA. Apparently, 
+.bin files are nothing more than address-data pairs.
 
-Anyway, making the .bin file just takes a single command: (Make sure to source
-the settings64.sh shell script in your Vivado install)
+Anyway, making the .bin file just takes a single command: (Make sure to 
+source the settings64.sh shell script in your Vivado install)
 
 $ bootgen -arch zynqmp -image specific.bif -o my_output.bin -w
 
-The annoying thing is that this bootgen command is used for a lot of things,
-and every time you use it you need to give it a special file with special
-syntax that tells it what to do. In the case of simply making a .bin, the
-specific.bif file you need is as follows:
+The bootgen command is used for a lot of things, and it expects a file 
+with special syntax to tell it what to do (a .bif file). In the case of 
+simply making a .bin, the specific.bif file you need is as follows:
 
-<specific.bif> 
-all: 
-{ 
-	[destination_device = pl] my_bitstream.bit 
-}
-</specific.bif>
+	all: 
+	{ 
+		[destination_device = pl] my_bitstream.bit 
+	}
 
-Make sure my_bitstream.bit is in the same folder as the specific.bif file.
+Make sure my_bitstream.bit is in the same folder as the specific.bif 
+file.
 
 
 ======================
 DEVICE TREE ACROBATICS 
 ======================
 
-You also need to make a "device tree overlay". This involves writing a file in
-a special language, then compiling it to a special binary file the Linux kernel
-will understand. Coding up the overlay is EXTREMELY DIFFICULT; I have done my
-best to explain what I know about it. Compiling the file is easy, but you need
-to have the device tree compiler installed. Most Linux distributions have a
-"dtc" package in their official repos.
+You also need to make a "device tree overlay". This involves writing a 
+file in a special language, then compiling it to a special binary file 
+the Linux kernel will understand. Writing the overlay is EXTREMELY 
+DIFFICULT; I have done my best to explain what I know about it.
 
--> Background on device trees and device tree overlays
+Compiling the file is easy, but you need to have the device tree 
+compiler installed. Most Linux distributions have a "dtc" package in 
+their official repos.
 
-"Device trees" is the name given to a technique introduced by OpenFirmware.
-Essentially, you give the Linux kernel a file at boot (called a device tree) 
-with a bunch of info about the hardware in your embedded system. Normally, for
-regular embedded systems, this file is created once and it is assumed that no
-hardware changes will occur (except hotplugging on buses that support it, such 
-as USB).
 
-However, if you are reprogramming an FPGA, then the hardware _is_ changing at
-runtime. It would be a pain in the rear end to reboot the Linux kernel every
-time, so there's another technique called "device tree overlays". Basically,
-you write a .dtsi file and copmile it to a .dtbo file. Then, using a special
-driver that Clark has included with the Linux system, you ask the Linux kernel
-to read in this .dtbo file and essentially "patch" the device tree that it is
-already using. This "patch" has the potential to trigger several actions inside 
-the Linux kernel (for example, notifying drivers about hardware changes, and we
-also use it to program the FPGA).
+Background on device trees and device tree overlays
+---------------------------------------------------
 
-Something you should know: the whole device tree method is still immature. The
-overlay method is essentially still in beta. People are working on it, but it's
-a huge and complicated thing that touches a lot of kernel code, so it's slow
-progress.
+"Device trees" is the name given to a technique introduced by 
+OpenFirmware. At boot time, you give the Linux kernel a "device tree" 
+file (kind of looks like XML) with info about the hardware in your 
+system. For regular embedded systems, this file is used once and it is 
+assumed that no further hardware changes will occur.
 
--> Writing the device tree overlay
+If you are reprogramming an FPGA, then hardware _is_ changing. Instead 
+of rebooting, you can use "device tree overlays": at runtime, you ask 
+the Linux kernel to read in a .dtbo file, which "patches" the device 
+tree that was loaded at boot. This patch will trigger actions inside 
+the kernel, such as loading/unloading drivers, and in our case, it also 
+causes the FPGA to be reprogrammed.
 
-The syntax for device trees is already bad, but the syntax for overlays is far,
-far worse. At this point, I will encourage you to give up understanding it. For
-starters, unless you wrote your own driver, there is LITERALLY NO WAY for you
-to figure out how to write device tree entries for it (the driver writer must
-provide this info to you). Also, the syntax is very likely to change several
-times in the next few years, so there's really no point learning it until it's
-more stable.
+Makign a dtbo involves writing a dtsi file and compiling it. Coding up 
+the dtsi is EXTREMELY DIFFICULT; I have done my best to explain what I 
+know about it. Compiling the dtbo is easy; you just to have the device 
+tree compiler installed. Most Linux distributions have a "dtc" package 
+in their official repos.
+
+	Something you should know: the whole device tree method is still 
+	immature. The overlay method is essentially still in beta. People 
+	are working on it, but it's a huge and complicated thing that 
+	touches a lot of kernel code, so it's slow progress.
+
+
+Writing the device tree overlay (dtsi)
+--------------------------------------
+
+	UPDATE: I finally clued in to what Camilo has been telling me for 
+	weeks: you don't write the device tree overlays manually. Check out 
+	this git repo:
+	
+	https://github.com/Xilinx/device-tree-xlnx
+	
+	I don't know the specifics, but this takes an HDF (From inside a 
+	Vivado project: File->Export->Export Hardware...) and automatically 
+	generates a dtsi. HOWEVER: apparently it is very broken, and you 
+	often need to manually edit the generated file
+
+The syntax for device trees is already bad, but the syntax for overlays 
+is far, far worse. At this point, I will encourage you to give up 
+understanding it. For starters, unless you wrote your own driver, there 
+is LITERALLY NO WAY for you to figure out how to write device tree 
+entries for it (the driver writer must provide this info to you). Also, 
+the dtsi syntax is very likely to change several times in the next few 
+years, so there's really no point learning it until it's more stable.
 
 Our device tree overlay has to accomplish four jobs:
 
 1) Upload the bitstream (in the .bin format) to the FPGA 
-2) Set the frequency of the PS's output clocks in the PL (i.e. the ones you set 
-   on the Zynq block in your block diagram).  
-3) (If using PS to PL) Tell Xilinx's DMA driver about AXI DMA cores in your 
-   design.  
-4) (If using PS to PL) Tell the axidma driver about the AXI DMA cores in your 
-   design
+
+2) Set the frequency of the PS's output clocks in the PL (i.e. the ones 
+   you set on the Zynq block in your block diagram).  
+   
+3) (If using PS to PL) Tell Xilinx's DMA driver about AXI DMA cores in 
+   your design.  
+   
+4) (If using PS to PL) Tell the axidma driver about the AXI DMA cores 
+   in your design
 
 The general format of the dtsi file is something like:
 
@@ -178,8 +201,8 @@ The general format of the dtsi file is something like:
 		/* etc... */
 	};
 
-Each one of the four jobs we need to do is performed in a separate "fragment
-and overlay" block.
+Each one of the four jobs we need to do is performed in a separate 
+"fragment and overlay" block.
 
 -> Jobs 1 and 2
 
@@ -205,13 +228,16 @@ reference to your bitstream and the clock frequencies
 		};
 	};
 
-I don't know this for sure, but if you have more than one output clock, you
-need to put them in separate fragment blocks. Make sure to increase the
-fragment and overlay indices as you go.
+This expects "mybitstream.bin" to be inside the "lib/firmware" folder.
+
+I don't know this for sure, but if you have more than one output clock, 
+you need to put them in separate fragment blocks. Make sure to increase 
+the fragment and overlay indices as you go.
 
 -> Job 3 (Informing Xilinx's driver about AXI DMA cores)
 
-This is by far the most hideous thing I've ever seen. Here is the code I've been using:
+This is by far the most hideous thing I've ever seen. Here is the code 
+I've been using:
 
 	fragment@2 {
 		target = <&amba>;
@@ -247,47 +273,54 @@ This is by far the most hideous thing I've ever seen. Here is the code I've been
 
 Here is everything I know about it:
 
- - Set the "axi_dma0: dma@<address>" to match the address set in the address
-   editor for the AXI DMA core.
+ - Set the "axi_dma0: dma@<address>" to match the address set in the 
+   address editor for the AXI DMA core.
 
- - Set the "xlnx,addrwidth" field to match the width of the AXI DMA's address
-   lines. In my case, this was 64 bits.
+ - Set the "xlnx,addrwidth" field to match the width of the AXI DMA's 
+   address lines. In my case, this was 64 bits.
 
- - Set the first "dma-channel@<address>" to match the address you used in the 
-   address editor. Here, my AXI DMA block was at 0xA00300000.
+ - Set the first "dma-channel@<address>" to match the address you used 
+   in the address editor. Here, my AXI DMA block was at 0xA00300000.
 
- - Set the second "dma_channel@<address>" to be the same address as above, but
-   add 0x30 to it. This is because the registers for the AXI DMA's receive 
-   channel are identical to those for the transmit channel, but offset by 0x30
-   in the register map.
+ - Set the second "dma_channel@<address>" to be the same address as
+   above, but add 0x30 to it. This is because the registers for the AXI 
+   DMA's receive channel are identical to those for the transmit 
+   channel, but offset by 0x30 in the register map.
 
- - Set the "xlnx,device-id" to be <0x0> for the transmit channel, and <0x1> 
-   for the receive channel.
+ - Set the "xlnx,device-id" to be <0x0> for the transmit channel, and 
+   <0x1> for the receive channel.
 
- - Set the "xlnx,datawidth" to be... well, the data width of the AXI DMA's 
-   interfaces. In this case, mine were 128 bits wide, giving <0x80>.
+ - Set the "xlnx,datawidth" to be... well, the data width of the AXI 
+   DMA's interfaces. In this case, mine were 128 bits wide, giving 
+   <0x80>.
 
  - The interrupts syntax is a TRAVESTY. The first number has to do with 
-   sharing or something, the second number is the actual interrup number, and
-   the third tells the kernel whether it's edge- or level-sensitive. Anyway,
-   you need to set the middle number to match the irq that channel is using.
-   For the love of God DO NOT TOUCH the first and third numbers. How do you
-   know which interrupt number it is? Well, the irq lines on the Zynq block
-   start at interrup 89 and go up by 1 each time. (There is actually more to
-   it: the ARM's iterrupt controller has some IRQ's reserved for interrupts 
-   from the FPGA fabric. If you look up these numbers, they will actually 
-   start at 120. For some reason, and yes this is true, you have to subtract
-   31 to get the number you put into the device tree. No, I don't know why.)
+   sharing or something, the second number is the actual interrupt 
+   number, and the third tells the kernel whether it's edge- or 
+   level-sensitive.
+   
+   Anyway, you need to set the middle number to match the IRQ that the
+   channel is using. For the love of God DO NOT TOUCH the first and 
+   third numbers.
+   
+   How do you know which interrupt number it is? Well, the IRQ lines on 
+   the Zynq block start at interrup 89 and go up by 1 each time. 
+   
+	  (There is actually more to it: the ARM's interrupt controller has 
+	  some IRQ's reserved for interrupts from the FPGA fabric. If you 
+	  look up these numbers, they will actually start at 120. For some 
+	  reason, and yes this is true, you have to subtract 31 to get the 
+	  number you put into the device tree. No, I don't know why.)
 
- - Please oh please don't touch anything else. I don't know what it does! The
-   overlay mechanism is very fragile, and literally almost any other change 
-   you make is certain to crash the ARM.
+ - Please oh please don't touch anything else. I don't know what it 
+   does! The overlay mechanism is very fragile, and literally almost 
+   any other change you make is certain to crash the ARM.
 
-I really hate the state of things, but this is the way it is. You can get more
-information on this in the README provided by the axidma driver. No, of course
-not from Xilinx! The one from the two Carnegie Melon students. They provided
-documentation for the device tree entries needed by Xilinx's driver... they are
-nothing short of heroes!
+I really hate the state of things, but this is the way it is. You can 
+get more information on this in the README provided by the axidma 
+driver. No, of course not from Xilinx! The one from the two Carnegie 
+Melon students. They provided documentation for the device tree entries 
+needed by Xilinx's driver... they are nothing short of heroes!
 
 -> Job 4 (informing the axidma driver)
 
@@ -310,7 +343,9 @@ that it references some of its entries.
 
 So, put these fragments together, and this is your .dtsi file. Good luck!
 
--> Compiling the .dtbo
+
+Compiling the .dtbo
+-------------------
 
 To compile dtsi into dtbo, you will need the device tree compiler. Most Linux
 distros have a "dtc" package in their official repos.
@@ -322,41 +357,49 @@ $ dtc -O dtb -o my_output.dtbo -b 0 -@ my_thing.dtsi
 ACTUALLY PROGRAMMING THE FPGA 
 =============================
 
-You need a lot of stuff in place for this to work. 
-- Clark's Linux setup should have all the necessary drivers for PCAP (PCAP is 
-  the name given to the hardened circuit in the PS which is used for programming
-  the FPGA fabric).
-- Mount the configfs filesystem (needed for applying device tree overlays)
-- Clark and Camilo have written some  bash commands which you will need. They 
-  are in the helpful_scripts/mpsoc_bash_stuff/clarks_aliases file. I provided
-  the one Camilo was using just for reference. I also have my own version, which
-  I don't feel like explaining
-- You will disablePci.sh in /root/disablePci.sh. I have provided this file in
-  helpful_scripts/mpsoc_bash_stuff
-- (If using PS to PL) Xilinx's AXI DMA driver (included in the kernel)
-- (If using PS to PL) The axidma.ko driver (which should be somewhere in the
-  home folder)
+You need a lot of stuff in place for this to work:
 
+- Clark's Linux setup should have all the necessary drivers for PCAP 
+  (PCAP is the name given to the hardened circuit in the PS which is 
+  used for programming the FPGA fabric).
+  
+- Mount the configfs filesystem (needed for applying device tree 
+  overlays)
 
-In order to program the FPGA (with support for the PS to PL communication), you
-will need to perform the following steps:
+- Clark and Camilo have written some  bash commands which you will 
+  need. They are in the helpful_scripts/mpsoc_bash_stuff/clarks_aliases 
+  file. I provided the one Camilo was using just for reference. I also 
+  have my own version, which I don't feel like explaining
+  
+- You will disablePci.sh in /root/disablePci.sh. I have provided this 
+  file in helpful_scripts/mpsoc_bash_stuff
+  
+- (If using PS to PL) Xilinx's AXI DMA kernel API (included in the 
+  kernel) 
 
-1. (If using PS to PL) Insert the axidma.ko module, if it hasn't been done 
-   already. There is a copy of it in /home/savi/drivers/axidma.ko This module 
-   was built from the EXCELLENT repo at:
+- (If using PS to PL) The axidma.ko driver (which should be somewhere 
+  in the home folder)
+
+In order to program the FPGA (with support for the PS to PL 
+communication), you will need to perform the following steps:
+
+1. (If using PS to PL) Insert the axidma.ko module, if it hasn't been 
+   done already. There is a copy of it in /home/savi/drivers/axidma.ko 
+   This module was built from the EXCELLENT repo at:
    
    https://github.com/bperez77/xilinx_axidma
 
-2. Check if configfs is mounted. Basically, there should be a folder called 
-   /configfs with some device tree stuff in it. If not, run:
+2. Check if configfs is mounted. Basically, there should be a folder 
+   called /configfs with some device tree stuff in it. If not, run:
 
    $ mountoverlay
    
-   (You don't need to do this step if you use clark's or my aliases file)
+   (You don't need to do this step if you use clark's or my aliases 
+   file)
 
-3. Copy your .bin and .dtbo files into /lib/firmware. I don't really know why
-   we have to do this; I guess something about the device tree and search paths 
-   or something...
+3. Copy your .bin and .dtbo files into /lib/firmware. I don't really 
+   know why we have to do this; I guess something about the device tree 
+   and search paths or something...
    
    $ cp my.bin /lib/firmware/my.bin
    $ cp my.dtbo /lib/firmware/my.dtbo
@@ -365,9 +408,11 @@ will need to perform the following steps:
 
    $ set_clocks freq1 [freq2] [freq3] [freq4] 
 
-   to match the CPU outputs clock frequencies you set in your block diagram. 
-   This is something the mpsoc_PSegs driver could take care of automatically,
-   but it has not been implemented yet
+   to match the CPU outputs clock frequencies you set in your block 
+   diagram. 
+   
+	  NOTE: This is something the mpsoc_PSegs driver could take care of 
+	  automatically, but I am still working on it
 
 5. Navigate to /lib/firmware and install the device tree overlay:
 
@@ -375,81 +420,95 @@ will need to perform the following steps:
 
    This will also program the bitstrem
 
-6. (Optional) Verify that the axidma driver recognized your stuff. It'll say
-   something like "1 transmit and 1 receive channel found" in dmesg.
+6. (Optional) Verify that the axidma driver recognized your stuff. 
+   It'll say something like "1 transmit and 1 receive channel found" in 
+   dmesg.
 
 
 ==========
 USING ILAS
 ==========
 
-Again, I am assuming you are using the system that Clark has put in place. It 
-should contain a program called "xvcserver", which I think is a modified version
-of the program at https://github.com/tmbinc/xvcd, or maybe the one at 
-https://github.com/Xilinx/XilinxVirtualCable. Honestly, I don't know where he 
-got it. And by the way, I'm pretty sure it needs a driver in the kernel, too. So
-that's another thing that Clark has set up.
+(This is a quick-and-dirty reference. A more full description can be 
+found on our wiki.)
+
+Again, I am assuming you are using the system that Clark has put in 
+place. It should contain a program called "xvcserver", which I think is 
+a modified version of the program at https://github.com/tmbinc/xvcd, or 
+maybe the one at https://github.com/Xilinx/XilinxVirtualCable. 
+Honestly, I don't know where he got it. And by the way, I'm pretty sure 
+it needs a driver in the kernel, too. So that's another thing that 
+Clark has set up.
 
 Anyway, to use ILAs, you need to do the following:
 
-1) Add a "debug bridge" IP to your design. Set it up in "AXI to BSCAN" mode, and
-   hook it up to the PS's AXI bus. For these instructions, I will assume you 
-   mapped it to address 0xA0010000
+1) Add a "debug bridge" IP to your design. Set it up in "AXI to BSCAN" 
+   mode, and hook it up to the PS's AXI bus. For these instructions, I 
+   will assume you mapped it to address 0xA0010000
    
-2) For the love of all things holy save your .ltx file (vivadoproj/runs/impl_1/)
-   somewhere alongside your bitstream. If not, then you will have a random 
-   bistream with ILAs you can't use.
+2) For the love of all things holy save your .ltx file 
+   (vivadoproj/runs/impl_1/) somewhere alongside your bitstream. If 
+   not, then you will have a random bitstream with ILAs you can't use.
    
 3) After programming the FPGA, run this command from inside the MPSoC:
 
-$ xvcserver -a 0xA0010000 -d
+   $ xvcserver -a 0xA0010000 -d
 
    This will start the XVC server on the MPSoC.
    
-4) Use ssh to tunnel port 2542 from the MPSoC to whatever port you want on your
-   local computer. You can do this from inside a running SSH session by hitting
-   enter, then typing the ~ key, and hitting a capital C. This will open a neat
-   little command line for addign tunnels. Alternatively, you could exit your 
-   SSH session and restart with the -L 2542:localhost:2542 switch, as usual
+4) Use ssh to tunnel port 2542 from the MPSoC to whatever port you want 
+   on your local computer. You can do this from inside a running SSH 
+   session by hitting enter, then typing the ~ key, and hitting a 
+   capital C. This will open a neat little command line for adding 
+   tunnels. Alternatively, you could exit your SSH session and restart 
+   with the -L 2542:localhost:2542 switch, as usual
 
-5) Inside Vivado's hardware manager, do "open new target...". Connect to local
-   server, and click "Add Xilinx Virtual Cable". Use localhost and whatever port
-   you picked for the tunnel (I normally use 2542).
+5) Inside Vivado's hardware manager, do "open new target...". Connect 
+   to local server, and click "Add Xilinx Virtual Cable". Use localhost 
+   and whatever port you picked for the tunnel (I normally use 2542).
 
-6) Make sure you ask Vivado to use the correct LTX file. I hope you saved it! 
-   Because if you made a new bitstream, then the new LTX file has overwritten
-   the old one, and you are straight outta luck!
+6) Make sure you ask Vivado to use the correct LTX file. I hope you 
+   saved it! Because if you made a new bitstream, then the new LTX file 
+   has overwritten the old one, and you are straight outta luck!
 
 
 ======================
 PS TO PL COMMUNICATION
 ======================
 
-This is a little complicated. Here is a summary of the many moving parts:
+(This is a quick-and-dirty reference. A more full description can be 
+found on our wiki.)
 
- - The AXI DMA IP core: this is something you add to your FPGA design. It will
-   plug into the Zynq block. Setting its parameters is complicated, and I don't
-   know all the details yet
+This is a little complicated. Here is a summary of the many moving 
+parts:
+
+ - The AXI DMA IP core: this is something you add to your FPGA design. 
+   It will plug into the Zynq block. Setting its parameters is 
+   complicated, and I don't know all the details yet
    
- - The Xilinx AXI DMA driver: this allows the kernel to acess the IP core
+ - The Xilinx AXI DMA kernel API: this allows the kernel to access the 
+   IP core
+  
+ - The DMAEngine system: this is an API used by Linux kernel code. It 
+   is not accessible by user space code. The purpose of the Xilinx AXI 
+   DMA kernal API is to register some stuff into the DMAEngine system so 
+   that calls to the DMAEngine API (by other drivers) can eventually 
+   trigger the AXI DMA IP core
  
- - The DMAEngine system: this is an API used by Linux kernel code. It is not
-   accessible by user space code. The purpose of the Xilinx AXI DMA driver is to
-   register some stuff into the DMAEngine system so that calls to the DMAEngine
-   API (by other drivers) can eventually trigger the AXI DMA IP core
+ - The axidma driver: this is the driver written by the Carnegie Melon 
+   students. It uses the DMAEngine API and creates device files that 
+   you can use from user space
  
- - The axidma driver: this is the driver written by the Carnegie Melon students.
-   It uses the DMAEngine API (which is itself using the Xilinx driver) and 
-   creates device files that you can use from user space
+ - The axidma user API library: this is a user mode shared library that 
+   makes it a little easier to use the axidma driver. It essentially 
+   converts the low level details of reading/writing from the driver 
+   into a nice-ish API.
  
- - The axidma user API library: this is a user mode shared library that makes it
-   a little easier to use the axidma driver. It essentially converts the low
-   level details of reading/writing from the driver into a nice-ish API.
- 
- - The device tree. Without a correct device tree, the Xilinx driver and axidma
-   driver will not correctly detect the hardware.
+ - The device tree. Without a correct device tree, the Xilinx driver 
+   and axidma driver will not correctly detect the hardware.
 
-At the moment I don't know the details of setting up the IP core, and I'm not
-really familiar with the axidma API library. And by the way, I'm pretty sure
-Clark and Camilo modified the axidma API library so that it also works with the
-MPSoC drivers that Clark wrote (see MPSoC_sources/drivers)
+At the moment I don't know the details of setting up the IP core, and 
+I'm not really familiar with the axidma API library. And by the way, 
+I'm pretty sure Clark and Camilo modified the axidma API library so 
+that it also works with the MPSoC drivers that Clark wrote (see 
+MPSoC_sources/drivers)
