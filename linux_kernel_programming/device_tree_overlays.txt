@@ -102,7 +102,7 @@ not an int. I will have to verify this.
 
 
 Here is my attempt at a simple kernel module which just prints every update to
-the device tree:
+the device tree. The results are a little hard to read, but it does work.
 
 	#include <linux/kernel.h> //print functions
 	#include <linux/init.h> //for __init, see code
@@ -112,6 +112,7 @@ the device tree:
 
 
 	//I don't know why, but for some reason <linux/of.h> isn't defining these?
+
 	/* For updating the device tree at runtime */
 	#define OF_RECONFIG_ATTACH_NODE		0x0001
 	#define OF_RECONFIG_DETACH_NODE		0x0002
@@ -126,10 +127,10 @@ the device tree:
 		
 		if (p == NULL) return;
 		if (p->name == NULL) {
-			sprintf(line+pos, "%s%n", "((anonymous property)) = ", &tmp);
+			tmp = sprintf(line+pos, "%s", "((anonymous property)) = 0x");
 			pos += tmp;
 		} else {
-			sprintf(line+pos, "%s = %n", p->name, &tmp);
+			tmp = sprintf(line+pos, "%s = 0x", p->name);
 			pos += tmp;
 		}
 		
@@ -153,7 +154,7 @@ the device tree:
 			}
 			
 			for (i = 0; i < stop_point; i++) {
-				sprintf(line+pos, "%02x", +data[i] & 0xFF);
+				sprintf(line+pos, "%02x", (+data[i]) & 0xFF);
 				pos += 2;
 			}
 			
@@ -165,23 +166,23 @@ the device tree:
 			}
 		}
 		
-		printk(KERN_ALERT "\t%s\n", line);
+		printk(KERN_ALERT "\t\t%s\n", line);
 	}
 
 	static void print_device_node(struct device_node *dn, int levels) {
-		struct property *cur = dn->properties;
+		//struct property *cur = dn->properties;
 		if (levels < 0) return;
 		if (dn == NULL) {
 			printk(KERN_ALERT "\t((empty device node))\n");
 			return;
 		}
-		printk(KERN_ALERT "\t.name = %s\n", dn->name);
-		printk(KERN_ALERT "\t.full_name = %s\n", dn->full_name);
-		
+		printk(KERN_ALERT "\t\t.name = %s\n", dn->name);
+		printk(KERN_ALERT "\t\t.full_name = %s\n", dn->full_name);
+		/*
 		while (cur != NULL) {
 			print_property(cur);
 			cur = cur->next;
-		}
+		}*/
 		
 		if (levels > 1) {
 			printk(KERN_ALERT "\nChild of:\n");
@@ -263,4 +264,5 @@ the device tree:
 
 	module_init(our_init); 
 	module_exit(our_exit);
+
 

@@ -1,0 +1,197 @@
+=====
+INTRO
+=====
+
+Sometimes you need to simulate something that uses AXI Lite or AXI Full. To 
+write all your own drivers for the bus signals is not a good way to do it; 
+unless you're an expert and have 16 GB of RAM installed in your brain, there's 
+pretty much no chance your singals will be correct. Anyway, it would be 
+extremely tedious.
+
+There is a anothrt way of doing simulations with AXI which is a little bit 
+easier: using the AXI Verification IP. The programming interface is very clunky 
+and was probably designed by an OOP zealot in the late 90s, but otherwise it's 
+not too difficult.
+
+However, please note that Varun Sharma has come up with a much better way of 
+doing simulations in general, and it also makes it a lot easier to simulate AXI 
+buses too: sonar. Essentially it uses Python to generate the messy Verilog you 
+have to write to get it to work. Once I figure out how to use it myself, I can 
+write up a little tutorial.
+
+
+=================
+USING THE AXI VIP
+=================
+
+First of all, your testbench has to be in SystemVerilog. If you already made
+your testbench file with Verilog, you can right-click on it in the Sources menu
+and hit "Set File type...". 
+
+After that, you'll need to import specific libraries for your testbench, and 
+then we'll go through the minimum part of the (overly complicated) API you need 
+do AXI transactions.
+
+
+IMPORTING THE LIBRARIES
+-----------------------
+
+Before your the "module" keyword, insert the following two lines:
+
+	import axi_vip_pkg::*;
+	import <component_name>_pkg::*;
+
+According to the AXI VIP documentation, you should replace <component_name> 
+with the name you gave the VIP in your block design. 
+
+Oh sorry, did you think that would work? Of course it doesn't work!
+
+Have no fear: there is a "foolproof" way to get the correct name. After 
+generating products on your block design, search your vivado project for any 
+files that end in ".sv". For example:
+	
+	$ cd /your/vivado/project
+	$ find -name "*pkg.sv"
+	./arbsim.ip_user_files/bd/design_1/ipshared/1909/Sources/packetfilt/packet_filter_regs_pkg.sv
+	./arbsim.ip_user_files/bd/design_1/ip/design_1_axi_vip_0_0/sim/design_1_axi_vip_0_0_pkg.sv
+	./arbsim.srcs/sources_1/bd/design_1/ipshared/1909/Sources/packetfilt/packet_filter_regs_pkg.sv
+	./arbsim.srcs/sources_1/bd/design_1/ip/design_1_axi_vip_0_0/sim/design_1_axi_vip_0_0_pkg.sv
+
+In this example, the actual component name of my AXI VIP (in the block diagram) 
+was "axi_vip_0". Basically, the technique is to look for the file whose name 
+contains the component name as a substring, and use that. In our example, the 
+mathcing files are:
+
+	./arbsim.ip_user_files/bd/design_1/ip/design_1_axi_vip_0_0/sim/design_1_axi_vip_0_0_pkg.sv
+	./arbsim.srcs/sources_1/bd/design_1/ip/design_1_axi_vip_0_0/sim/design_1_axi_vip_0_0_pkg.sv
+
+I'm not sure why there are two, but the have the same file name. So, use this 
+for the library imports:
+
+	import axi_vip_pkg::*;
+	import design_1_axi_vip_0_0_pkg::*;
+
+
+QUICK TIP
+---------
+
+At this point, your testbench essentially just contains some wire declarations, 
+and an instantiation of your top-level design. Run a behavioural simluation on 
+it (even if you haven't written the rest of your testbench yet). This will open
+up the "Scope" toolbox. 
+
+The scope toolbox is really useful for getting the right "path" to signals in 
+your simulations. So for example, mine looks like this:
+
+my_tb
+    DUT
+        design_1_i
+            axi_vip_0
+            ...
+            (a bunch of other IPs in my block diagram)
+
+In order to reference internal signals in the VIP (from code inside the my_tb 
+file) you would do
+
+	DUT.design_1_i.axi_vip_0.SIGNAL <= VALUE;
+
+This will be helpful for the next section
+		
+
+
+USING THE API
+-------------
+
+	NOTE: These code examples are if you have a master-mode VIP, since 
+	that's normally all I ever use. The general technique is quite similar 
+	for the pass-through and slave modes; you pretty much just change 
+	"master" to "slave" in the function names.
+
+To send AXI transactions, you need to do four things:
+ 
+ - Declare some variables with specific types
+ - For each VIP, instantiate its agent (whatever that means)
+ - Start the agent (whatever that means)
+ - Actually send the transaction
+
+
+
+-> Declaring variables.
+
+For AXI transactions, you will need the following variables (explanations for 
+what they do is given below). Declare them like you would declare regular wires 
+in your testbench:
+	
+	module my_tb();
+	
+	<component_name>_mst_t	my_agent;
+	xil_axi_prot_t		prot = 0;
+	xil_axi_resp_t		resp;
+	
+	....
+	
+	endmodule
+
+<component_name> should be replaced with the same thing you used in the package 
+import. In my example, this is "design_1_axi_vip_0_0".
+
+my_agent: Each AXI VIP in your design will generate its own internal classes 
+(this is because each VIP could be configured differently, so a 
+one-size-fits-all class wouldn't work). We will declare a "master agent" class 
+for our IP.
+
+prot and resp: Each AXI write has protection bits, and a read response. 
+Although I always ignore these signals, you do still need to pass something 
+into the function that triggers the transacation (this is explained below). So 
+that's why we have these.
+
+
+-> Instantiate and start the agent
+
+Honestly I don't know what this means, but you have to do it. In an initial 
+block, write:
+
+	initial begin
+		//Create an agent
+		my_agent = new("master vip agent", path.to.axi_vip.inst.IF);
+		
+		// set tag for agents for easy debug
+		my_agent.set_agent_tag("Master VIP");
+
+		// set print out verbosity level.
+		my_agent.set_verbosity(400);
+
+		//Start the agent
+		my_agent.start_master();
+	end
+
+I got this code from: 
+https://xilinx-wiki.atlassian.net/wiki/spaces/A/pages/18842507/Using+the+AXI4+VIP+as+a+master+to+read+and+write+to+an+AXI4-Lite+slave+interface
+and I just don't touch it.
+
+
+-> Actually sending transcations
+
+This is the easy part. Anywhere in your code, write:
+
+	my_agent.AXI4LITE_WRITE_BURST(addr,prot,data,resp);
+
+You don't have to do anything with prot and resp; just use regular Verilog 
+wires for the desired address and data.
+
+
+
+=========
+REFERENCE
+=========
+
+Here are the reference documents for the AXI VIP.
+
+https://www.xilinx.com/support/documentation/ip_documentation/axi_vip/v1_1/pg267-axi-vip.pdf
+(especially check chapter 6)
+
+https://www.xilinx.com/support/answers/70620.html (download the zip 
+file. It contains a bunch of HTML files you can open in your browser)
+
+And a helpful tutorial:
+https://xilinx-wiki.atlassian.net/wiki/spaces/A/pages/18842507/Using+the+AXI4+VIP+as+a+master+to+read+and+write+to+an+AXI4-Lite+slave+interface
