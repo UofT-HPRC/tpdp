@@ -48,7 +48,8 @@ parallel wires.
  - The metadata are on the the "meta_rx" and "meta_tx" ports
 
  - The TX metadata are read by GULF Stream on the first flit after a TLAST is 
-   asserted (when TREADY and TVALID are asserted). 
+   asserted (by "the first flit", I mean on the first cycle where TREADY and 
+   TVALID are both asserted). 
 
  - The RX metadata are valid for the whole packet on payload_to_user. That is, 
    from the first flit up until the cycle after TLAST, TVALID, and TREADY are 
