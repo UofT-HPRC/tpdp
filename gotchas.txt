@@ -16,3 +16,7 @@ Breaking out interface pins on a hierarchy:
 	packet mode fifo on the AXIS input to the converter. Otherwise, if your 
 	TVALID signal goes low in the middle of a packet, the 100G core will 
 	output a packet with a bad frame check sequence.
+
+AXIS data FIFO packet mode does not work with two clocks
+	Instead, use one small FIFO for clock crossing and then place a FIFO 
+	for the packet mode buffering.
