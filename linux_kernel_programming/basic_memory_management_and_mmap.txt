@@ -128,12 +128,38 @@ Swapped Pages:
 Process Address Space:
 	A process is free to use any 64 bit address it wants. The OS will take 
 	care of maintaining TLB entries so that these addresses get mapped to 
-	the correct physical addresses (and it will read in any swapped pages 
+	the correct physical addresses (and it will load any swapped pages in 
 	to RAM if necessary). Additionally, the OS reserves to right to kill 
 	the process if it tries anything suspicious. After all, the OS knows 
 	exactly which memory a process is allowed to use, since it must manage 
 	it in the first place.
 	
 	Here's something important: whenever a system call is made, we will 
-	start executing kernel code (in supervisor/ring 0 mode). As a 
-	performance optimization, 
+	start executing kernel code (in supervisor/ring0 mode). The kernel, 
+	like any user process, still uses virtual memory, and the addresses it 
+	asks for go through the exact same MMU and TLB translation mechanisms.
+	
+	Here's the thing: suppose that a user process used virtual address 
+	0x1000, and that the kernel used virtual address 0x1000. Well, if we do 
+	a system call, the TLB entry for virtual address 0x1000 will be 
+	replaced with the correct mapping for the kernel. 
+	
+	This is not a problem, but it does cause performance to degrade. If 
+	this example process makes several system calls during its lifetime, 
+	there will be /two/ TLB misses for 0x1000 for each of these calls (one 
+	in the kernel, and one when control is returned to the user process).
+	
+	So, as a performance optimization, the kernel's virtual addresses all 
+	have a 1 as the most significant bit of their addresses (bit 63), 
+	whereas all user processes all have a 0 as the most significant bit. 
+	Technically this means that a user process can only ever have an 
+	address space of size 2^63 instead of 2^64, but who cares? That's 
+	already a ton of memory. Anyway, the net result is that kernel virtual 
+	addresses never clobber use virtual addresses.
+
+Kernel structures for maintaining memory map information:
+
+
+Kernel functions for managing memory maps:
+
+

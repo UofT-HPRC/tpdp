@@ -76,6 +76,11 @@ The counterpart to the open function. I'm not exactly sure what's going on with
 free_page, but at least we can see that the mpsoc_axireg_priv struct is 
 deallocated.
 
+Just a quick thing: at no point is priv->num_pages ever set to anything other 
+than 0. Also, at no point is the waitqueue used. Also, at no point is 
+priv->page_ptr ever set or used. The entire private struct could probably be 
+removed from this code.
+
 	static int mpsoc_axireg_release(struct inode *inode, struct file *filp)
 	{
 		struct mpsoc_axireg_priv *priv = (struct mpsoc_axireg_priv *) filp->private_data;
@@ -94,6 +99,13 @@ have to have a bit of an understanding about how Linux manages memory pages and
 how virtual memory is implemented. Since I'm very shaky on these points, I'll 
 have to do a little research and come back to this. Probably, I will write an 
 entire text file just on explaining how to write your own mmap function.
+
+UPDATE: I've started writing an mmap explanation file. You can find it in
+linux_kernel_programming/basic_memory_management_and_mmap.txt. 
+
+The main thing this function does is invoke io_remap_pfn_range. Essentially, 
+this function instructs the Linux kernel to edit the page tables for the 
+process that called the mmap function.
 
 	static int mpsoc_axireg_mmap(struct file *filp, struct vm_area_struct *vma)
 	{

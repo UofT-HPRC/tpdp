@@ -50,8 +50,9 @@ parallel wires.
  - The TX metadata are read by GULF Stream on the first flit after a TLAST is 
    asserted (when TREADY and TVALID are asserted). 
 
- - The RX metadata are at least valid on the first flit, but I don't know if 
-   they're constant for the whole duration of reading from the payload stream.
+ - The RX metadata are valid for the whole packet on payload_to_user. That is, 
+   from the first flit up until the cycle after TLAST, TVALID, and TREADY are 
+   asserted.
 
 If this is inconvenient, Camilo has produced an IP core which converts the 
 payload and metadata into two AXI Streams. At the moment I don't know if it's 
@@ -96,6 +97,7 @@ It is connected between the 100G core and GULF Stream as follows:
 WAIT, WHAT ABOUT CLOCKS?
 ========================
 
-GULF Stream and the LBUS to AXIS converters should use the tx_userclk2 output 
-from the 100G core. Please refer to usplus_100g.txt (in the clocks section) for 
-slightly more information.
+The LBUS to AXIS converters must use the tx_userclk2 output from the 100G core. 
+However, you can run GULF Stream at any clock frequency provided you perform 
+the correct clock crossing logic. Note that GULF Stream is capable of running 
+at the 322 MHz frequency on tx_userclk2, if that is needed.
