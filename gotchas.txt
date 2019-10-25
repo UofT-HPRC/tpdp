@@ -10,9 +10,25 @@ Breaking out interface pins on a hierarchy:
 	ANYTHING. It won't even warn you.
 	
 	
-100G subsystem expects "dense" LBUS signals
+100G subsystem expects "dense" LBUS signals:
 	The 100G ethernet subsystem assumes that your LBUS input is continuous. 
 	If you use Clark's AXIS to LBUS converter, this means you have to use a 
 	packet mode fifo on the AXIS input to the converter. Otherwise, if your 
 	TVALID signal goes low in the middle of a packet, the 100G core will 
 	output a packet with a bad frame check sequence.
+
+
+AXIS Data FIFOs do not have correct packet mode when two clocks are 
+used:
+	Title says it all. Instead of one FIFO in packet mode with two 
+	clocks, instead use one small two-clock FIFO for the clock 
+	crossing, then plug that into a single-domain packet mode FIFO.
+
+
+AXI interconnect hangs the ARM when only using debug bridge:
+	In some projects the PS is only there to hook up an XVC server to 
+	something. In these cases (and ONLY in these cases) you should use 
+	an AXI Smart Connect IP to connect the PS to the debug bridge. If 
+	you use an AXI interconnect, it will hang the board. Even if you 
+	take into account Camilo's tip about having two masters at minimum.
+	
