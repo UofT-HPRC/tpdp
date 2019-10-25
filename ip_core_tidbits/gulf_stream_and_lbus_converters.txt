@@ -17,6 +17,23 @@ The 100G subsystem will take care adding/removing the ethernet headers and
 frame check sequences, and GULF Stream will take sure of adding/removing the 
 UDP headers.
 
+================================================
+GETTING THE FILES AND ADD ADDING TO YOUR PROJECT
+================================================
+
+The necessary files can be cloned from:
+	https://github.com/UofT-HPRC/GULF-Stream 
+Simply source settings64.sh in the Vivado install directory, then run make in 
+the GULF Stream directory. This will take around 20 minutes to complete.
+
+To add the IP cores to your vivado project, simply add the whole GULF Stream 
+folder as an IP repository in the IP catalog.
+
+One last tip: try running 
+	$ make loopback_example
+in the GULF Stream to see an example project. It will be in the examples 
+folder.
+
 
 ==========================================
 CONNECTING GULF STREAM TO YOUR APPLICATION
@@ -30,11 +47,11 @@ parallel wires.
  
  - The metadata are on the the "meta_rx" and "meta_tx" ports
 
- - The TX metadata is read by GULF Stream on the first flit after a TLAST is 
+ - The TX metadata are read by GULF Stream on the first flit after a TLAST is 
    asserted (when TREADY and TVALID are asserted). 
 
- - The RX metadata is at least valid on the first flit, but I don't know if 
-   it's constant for the whole duration of reading from the payload stream.
+ - The RX metadata are at least valid on the first flit, but I don't know if 
+   they're constant for the whole duration of reading from the payload stream.
 
 If this is inconvenient, Camilo has produced an IP core which converts the 
 payload and metadata into two AXI Streams. At the moment I don't know if it's 
@@ -46,4 +63,39 @@ CONNECTING GULF STREAM TO THE ETHERNET SUBSYSTEM
 ================================================
 
 Unfortunately, in Vivado 2018.3, the ethernet subsystem requires the LBUS 
-protocol. Luckily, Clark has provided the lbus_axis_converter IP.
+protocol. Luckily, Clark has provided the "lbus_axis_converter" IP core. If you 
+added the GULF Stream folder as an IP repository, you should already be able to 
+add it to your block diagram. It looks like this:
+
+                     __________________
+                     |                |
+                ---->|lbus_rx   m_axis|--->
+                     |                |
+                     |  LBUS to AXIS  |
+                     |   converter    |
+                     |                |
+                <----|lbus_tx   s_axis|<---
+                     |________________|
+                     
+The important thing to realize is that one converter handles both directions. 
+It is connected between the 100G core and GULF Stream as follows:
+
+ ______________     __________________    __________
+<             |     |                |    |         >
+<      lbus_rx|---->|lbus_rx   m_axis|--->|s_axis   >
+<             |     |                |    |         >
+<    100G     |     |  LBUS to AXIS  |    |   GULF  >
+< Subsystem   |     |   converter    |    |  Stream >
+<             |     |                |    |         >
+<      lbus_tx|<----|lbus_tx   s_axis|<---|m_axis   >
+<_____________|     |________________|    |_________>
+
+
+
+========================
+WAIT, WHAT ABOUT CLOCKS?
+========================
+
+GULF Stream and the LBUS to AXIS converters should use the tx_userclk2 output 
+from the 100G core. Please refer to usplus_100g.txt (in the clocks section) for 
+slightly more information.
