@@ -1,0 +1,18 @@
+This is a list of things that caused me to lose (a lot of) time. Eventually, I 
+will try to find a better way to organize this so that it's easier to search 
+through.
+
+Breaking out interface pins on a hierarchy:
+	In a Vivado block design, it is possible to have interface pins on a 
+	hierarchy. If, on the inside of the hierarchy, you connect the 
+	interface pin to something, but on the outside, you split open the 
+	hierarchy to connect individual wires, VIVADO WILL NOT CONNECT 
+	ANYTHING. It won't even warn you.
+	
+	
+100G subsystem expects "dense" LBUS signals
+	The 100G ethernet subsystem assumes that your LBUS input is continuous. 
+	If you use Clark's AXIS to LBUS converter, this means you have to use a 
+	packet mode fifo on the AXIS input to the converter. Otherwise, if your 
+	TVALID signal goes low in the middle of a packet, the 100G core will 
+	output a packet with a bad frame check sequence.

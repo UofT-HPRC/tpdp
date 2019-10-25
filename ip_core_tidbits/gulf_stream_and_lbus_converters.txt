@@ -1,0 +1,49 @@
+========
+OVERVIEW
+========
+
+The GULF Stream IP block implements the UDP layer, and supports 100G speeds. To 
+use it means adding a 100G Ethernet subsystem (see usplus_100g.txt in this 
+folder) and placing GULF Stream between that and your application:
+
+          _______________   __________   _______________
+      |   |             |   |        |   |             |
+-QSFP-|-->|    100 G    |-->|  GULF  |-->|    Your     |
+ Port |   |             |   |        |   |             |
+<-----|---|  Subsystem  |<--| Stream |<--| Application |
+      |   |_____________|   |________|   |_____________|
+
+The 100G subsystem will take care adding/removing the ethernet headers and 
+frame check sequences, and GULF Stream will take sure of adding/removing the 
+UDP headers.
+
+
+==========================================
+CONNECTING GULF STREAM TO YOUR APPLICATION
+==========================================
+
+This is relatively easy: the payload is in an AXI Stream format and the 
+metadata (i.e. source and destination address/ports) are brought out as 
+parallel wires. 
+
+ - The streams are on the "payload_to_user" and "payload_from_user" ports
+ 
+ - The metadata are on the the "meta_rx" and "meta_tx" ports
+
+ - The TX metadata is read by GULF Stream on the first flit after a TLAST is 
+   asserted (when TREADY and TVALID are asserted). 
+
+ - The RX metadata is at least valid on the first flit, but I don't know if 
+   it's constant for the whole duration of reading from the payload stream.
+
+If this is inconvenient, Camilo has produced an IP core which converts the 
+payload and metadata into two AXI Streams. At the moment I don't know if it's 
+on github or something, but you can always e-mail Camilo and ask him for it.
+
+
+================================================
+CONNECTING GULF STREAM TO THE ETHERNET SUBSYSTEM
+================================================
+
+Unfortunately, in Vivado 2018.3, the ethernet subsystem requires the LBUS 
+protocol. Luckily, Clark has provided the lbus_axis_converter IP.
