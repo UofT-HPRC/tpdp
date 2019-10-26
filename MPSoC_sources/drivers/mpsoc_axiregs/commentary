@@ -105,7 +105,9 @@ linux_kernel_programming/basic_memory_management_and_mmap.txt.
 
 The main thing this function does is invoke io_remap_pfn_range. Essentially, 
 this function instructs the Linux kernel to edit the page tables for the 
-process that called the mmap function.
+process that called the mmap function. The other important thing is marking the 
+pages as non-cached; I don't actually know how the cache is turned off for 
+specific addresses, but that is necessary here.
 
 	static int mpsoc_axireg_mmap(struct file *filp, struct vm_area_struct *vma)
 	{

@@ -158,8 +158,51 @@ Process Address Space:
 	addresses never clobber use virtual addresses.
 
 Kernel structures for maintaining memory map information:
-
+	
+	struct mm_struct: Each process has one of these structs, which contains 
+	all the information about that process's memory map. This includes 
+	pointers to page tables, as well as a number of "virtual memory area" 
+	structs, described below.
+	
+	struct vm_area_struct: Strictly speaking, the only thing a process 
+	needs is its page tables. However, what happens if a page fault occurs? 
+	In one case, the process is accessing memory it's not allowed to touch, 
+	and the kernel will signal a segfault. However, it's also possible that 
+	the process accessed memory that it did have permission to touch, and a 
+	specific page fault handler needs to be called. Each "section" of a 
+	process's address space is represented by one of these structs.
 
 Kernel functions for managing memory maps:
 
-
+	remap_pfn_range
+	---------------
+	This function is a little weird. First, the prototype:
+		int remap_pfn_range(
+			struct vm_area_struct *vma,
+			unsigned long virt_addr, unsigned long pfn,
+			unsigned long size, pgprot_t prot
+		);
+	For some reason, it takes a vm_area_struct as a parameter, and yet also 
+	asks for a virtual address, size, and protection info. I mean, it could 
+	get this info from the VMA struct; in fact, all mmap code I've ever 
+	seen will just set 
+		virt_addr = vma->vm_start
+		size = (vma->vm_end-vma->vm_start)
+		prot = vma->vm_page_prot
+	Kinda silly.
+	
+	Anyway, this function simply edits the page tables of the process who 
+	owns the VMA struct so that (virt_addr) maps to the physical address 
+	(pfn << PAGE_SHIFT), and so that (virt_addr + 1 page) maps to 
+	(pfn<<PAGE_SHIFT + 1 page), etc. for the size specified in size. The 
+	prot parameter determines the protection
+	
+	As usual, negative return value signals an error.
+	
+	io_remap_pfn_range
+	------------------
+	This function is almost identical to remap_pfn_range, and on 64 bit 
+	systems, is actually a macro that translates to remap_pfn_range. I 
+	think it's only there so that different architectures can specify 
+	different behaviour.
+	
