@@ -1,0 +1,190 @@
+This is a quick little document to help with the messy details of just getting 
+flex and yacc projects compiling. Most people have no trouble writing regexes 
+and grammars, but it's such a pain in the ass to fix all the compiler errors!
+
+========
+OVERVIEW
+========
+
+First, it's best to start with your bison file. We'll go over some of the fancy 
+options we'll need for C++ parsers. Luckily, this will take care of almost all 
+the issues with flex, too.
+
+Then, we'll talk about how to compile everything.
+
+Finally, we'll quickly go over how to use bison's "variants" in your flex 
+actions.
+
+
+==============
+THE BISON FILE
+==============
+
+First, we'll turn on the C++ option. It's also a good idea to put a version 
+requirement. Put these two lines at the beginning:
+
+	%require "3.2"
+	%language "c++"
+
+I highly recommend the following options:
+
+	/* Enable variants */
+	%define api.value.type variant
+
+	/* Needed for type-safe constructors in the lexer*/
+	%define api.token.constructor
+
+Bison has this really slick type system that works super nicely with C++. The 
+above two statements turn it on. We'll talk about this system in the types 
+section of this document. For now, all you need to know is that bison will 
+define a type called yy::parser::symbol_type which is a replacement for the raw 
+unions that are used in C mode.
+
+Now we get into the black magic for tricking the compiler into working. Make 
+yourself a header file which looks like this:
+
+	//This header guard is very important!
+	#ifndef YYDECL_H
+	#define YYDECL_H 1
+	
+	//Trick flex into making a function with C++ return type
+	#define YY_DECL yy::parser::symbol_type yylex () 
+
+	//Forward-declare yylex so that bison compiles
+	YY_DECL;
+
+	#endif
+
+When flex generates the lexer implementation file (which it _thinks_ is going 
+to be C code) it will actually use the YY_DECL macro that bison can choose to 
+provide. This will cause yylex to be defined as above.
+
+Supposing you called your header file "yydecl.h", put this right under the 
+existing statements in your bison file:
+
+	%code provides {
+	#include "yydecl.h"
+	}
+
+The "provides" keyword tells bison to put this in the generated header file, 
+rather than at the top of the parser implementation file (which is the 
+default). This is important: if you don't do this, the parser header file will 
+throw a compiler error.
+
+That's it!
+
+
+=============
+THE FLEX FILE
+=============
+
+Because of something explained in the next section, we won't be relying on 
+libfl.so to supply a default yywrap, so just define your own in the code 
+section of the flex file. Mine looks like this:
+
+	int yywrap() {
+		return 1;
+	}
+
+=====================
+GETTING IT TO COMPILE
+=====================
+
+Here's an example makefile for compiling the whole project:
+
+	all:	main Makefile
+
+	main:	lexer.cpp parser.cpp parser.h yydecl.h
+		g++ -o main lexer.cpp parser.cpp -ly
+
+	lexer.cpp:	lexer.l parser.h yydecl.h
+		flex -o lexer.cpp lexer.l
+
+	parser.h:	parser.yy yydecl.h
+		bison --defines=parser.h -o parser.cpp parser.yy
+
+	parser.cpp:	parser.h
+
+	clean:
+		rm -f lexer.cpp
+		rm -f lexer
+		rm -f main
+		rm -f *.o
+		rm -f parser.h
+		rm -f parser.cpp
+
+VERY IMPORTANT: do NOT use "-lfl" in your compiler options! This will link your 
+program against libfl.so, which will just cause all kinds of compiler errors. 
+It turns out all this library does is declare a couple of default functions 
+which we won't even use. The big one is yywrap, which we dealt with already.
+
+
+==============
+BISON VARIANTS
+==============
+
+As you may already know, C++ doesn't work too well with raw unions, so C++ 
+bison will use a custom variant type (which is very similar to std::variant).
+
+You don't need to worry about this, because it's very easy to use. You use the 
+%token and %type directives in the usual way. For example, in your bison file,
+	
+	// terminals with a specific type
+	%token <int> NUM
+	%token <std::string> ID
+	
+	// terminals with no specific type (defaults to an auto-generated enum)
+	%token LEFT_PAREN
+	%token RIGHT_PAREN
+	%token COMMA
+	
+	// Non-terminals and their types
+	%type <std::vector<std::string> > ID_LIST
+	%type <myExpType> EXPR
+	%type <myStmtType> STMT
+
+IMPORTANT: don't use typedefs (or "using X=Y;"). Bison has a bug where it will 
+not detect when two typedefs are the same type, and it will generate two 
+functions with identical C++ function signatures (which is a compiler error).
+
+And in your lexer file, whenever you want to return a token, use the make_X 
+functions that bison defines:
+
+	number	[0-9]+
+	id	[a-zA-Z_]+[a-zA-Z0-9_]*
+
+	%%
+
+	{number}	{
+				int val;
+				sscanf(yytext, "%d", &val);
+				return make_NUM(val);
+			}
+
+	{id}		{
+				return make_ID(yytext);
+			}
+
+	"("		{
+				return make_LEFT_PAREN();
+			}
+
+	")"		{
+				return make_RIGHT_PAREN();
+			}
+
+(this is what that "%define api.token.constructor" directive does. If you don't 
+put it, I don't know what you're supposed to do instead)
+
+Essentially, these make_X functions will construct a yy::parser::symbol_type 
+object with the correct type. And by the way, yes, the C++ compiler will 
+perform RVO.
+
+The really REALLY nice thing is how easy it is to write your parser actions:
+
+	ID_LIST:
+		  ID {$$.push_back($1);}
+		| ID_LIST COMMA ID {$$ = std::move($1); $$.push_back($2);}
+
+Because we gave types to the terminals and non-terminals, we can treat the $x 
+variables in the natural way!
