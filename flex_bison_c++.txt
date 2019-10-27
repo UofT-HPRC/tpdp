@@ -1,5 +1,5 @@
 This is a quick little document to help with the messy details of just getting 
-flex and yacc projects compiling. Most people have no trouble writing regexes 
+flex and bison projects compiling. Most people have no trouble writing regexes 
 and grammars, but it's such a pain in the ass to fix all the compiler errors!
 
 ========
@@ -59,8 +59,8 @@ When flex generates the lexer implementation file (which it _thinks_ is going
 to be C code) it will actually use the YY_DECL macro that bison can choose to 
 provide. This will cause yylex to be defined as above.
 
-Supposing you called your header file "yydecl.h", put this right under the 
-existing statements in your bison file:
+Supposing you called your header file "yydecl.h", put this in the definitions 
+section of your bison file:
 
 	%code provides {
 	#include "yydecl.h"
@@ -85,6 +85,7 @@ section of the flex file. Mine looks like this:
 	int yywrap() {
 		return 1;
 	}
+
 
 =====================
 GETTING IT TO COMPILE
@@ -171,6 +172,10 @@ functions that bison defines:
 
 	")"		{
 				return make_RIGHT_PAREN();
+			}
+
+	","		{
+				return make_COMMA();
 			}
 
 (this is what that "%define api.token.constructor" directive does. If you don't 
