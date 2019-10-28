@@ -159,27 +159,29 @@ functions that bison defines:
 	{number}	{
 				int val;
 				sscanf(yytext, "%d", &val);
-				return make_NUM(val);
+				return yy::parser::make_NUM(val);
 			}
 
 	{id}		{
-				return make_ID(yytext);
+				return yy::parser::make_ID(yytext);
 			}
 
 	"("		{
-				return make_LEFT_PAREN();
+				return yy::parser::make_LEFT_PAREN();
 			}
 
 	")"		{
-				return make_RIGHT_PAREN();
+				return yy::parser::make_RIGHT_PAREN();
 			}
 
 	","		{
-				return make_COMMA();
+				return yy::parser::make_COMMA();
 			}
 
 (this is what that "%define api.token.constructor" directive does. If you don't 
-put it, I don't know what you're supposed to do instead)
+put it, I don't know what you're supposed to do instead) If the "yy::parser::" 
+looks a little too hideous, you can, of course, use #define or a "using 
+namespace" statement.
 
 Essentially, these make_X functions will construct a yy::parser::symbol_type 
 object with the correct type. And by the way, yes, the C++ compiler will 
