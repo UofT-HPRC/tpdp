@@ -34,3 +34,29 @@ AXI interconnect hangs the ARM when only using debug bridge:
 Debug bridge hangs Linux
 	The debug bridge can run at 100 MHz, but not at 200 MHz. I'm not sure 
 	what the maximum clock speed is.
+
+MPSoC does not have login prompt on serial
+	Sometimes, if your SSH is not working, you need a command line on an 
+	MPSoC. The easiest way to do this is plug in the JTAG cable and use 
+	
+		sudo screen /dev/ttyUSB0
+		
+	on the computer you connected it to.
+	
+	Problem is, sometimes that login prompt will not show up. At boot, it 
+	will say something like "starting a run job of getty..." and eventually 
+	time out.
+	
+	The solution is to remove the SD card, open up the files in another 
+	computer, go into /etc/systemd/system/getty.target.wants and copy the 
+	getty@tty1.service into getty@ttyPS0.service.
+
+MPSoC SSH does not start at boot
+	This happened to us after upgrading some packages. Essentially, there 
+	is a bug with a certain version of systemd where installing the package 
+	will change the owner of / (i.e. the root directory). Simply log on to 
+	the system (through the serial console) and type
+	
+	sudo chown root: /
+	
+	and that should fix the problem
