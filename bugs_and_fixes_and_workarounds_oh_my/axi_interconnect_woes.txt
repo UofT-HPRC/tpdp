@@ -1,0 +1,34 @@
+Auto-generated AXI interconnects are correct about 50% of the time
+	It's true! Even if you run validate design (which propagates 
+	parameters), AXI Interconnects can still be DEAD WRONG*. This is the 
+	single biggest time-killer in my day-to-day work, since it invariably 
+	results in a hung MPSoC. 
+	
+		*All AXI interconnects are essentially an AXI crossbar with the 
+		necessary conversion logic (called "couplers") around it. I'm 
+		pretty sure that validation will update the couplers, but never 
+		the crossbar, which is the source of many problems.
+	
+	Though it may strain thy mental pathways, yea, thou must always checkst 
+	thine AXI interconnects, lest thy little time on this Earth be 
+	squandered.
+
+"The [AXI] datawidth converter is a broken piece of garbage" - Camilo Vega
+	After yet more trouble with debug bridges hanging the board, Camilo 
+	pointed out a common flaw with the AXI interconnects: the automatic 
+	choice of the internal corssbar size will sometimes cause both a slave 
+	and a master to require datawidth conversion.
+	
+	Now, if the datawidth converter worked, this would not really be an 
+	issue. However, just one datawidth converter is potentially a problem, 
+	so two is definitely bad juju.
+	
+	In your AXI interconnect, turn on advanced configuration, and manually 
+	set the crossbar width to something reasonable.	 Good luck!
+	
+AXI interconnect hangs the ARM when only using debug bridge:
+	In some projects the PS is only there to hook up an XVC server to 
+	something. In these cases (and ONLY in these cases) you should use an 
+	AXI Smart Connect IP to connect the PS to the debug bridge. If you use 
+	an AXI interconnect, it will hang the board. Even if you take into 
+	account Camilo's tip about having two masters at minimum.

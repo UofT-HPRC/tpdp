@@ -1,0 +1,4 @@
+AXIS Data FIFOs do not have correct packet mode when two clocks are used:
+	Title says it all. Instead of one FIFO in packet mode with two clocks, 
+	instead use one small two-clock FIFO for the clock crossing, then plug 
+	that into a single-domain packet mode FIFO.

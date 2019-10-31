@@ -1,0 +1,10 @@
+AXI interconnect hangs the ARM when only using debug bridge:
+	In some projects the PS is only there to hook up an XVC server to 
+	something. In these cases (and ONLY in these cases) you should use an 
+	AXI Smart Connect IP to connect the PS to the debug bridge. If you use 
+	an AXI interconnect, it will hang the board. Even if you take into 
+	account Camilo's tip about having two masters at minimum.
+
+Debug bridge hangs Linux
+	The debug bridge can run at 100 MHz, but not at 200 MHz. I'm not sure 
+	what the maximum clock speed is.
