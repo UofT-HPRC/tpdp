@@ -1,0 +1,70 @@
+I realize that most of the other students in the group swear by HLS, but 
+personally I have no truck with it. So, I use Verilog more often than not.
+
+I have recently discovered a much more productive and painless Verilog coding 
+experience: using Icarus Verilog. Here is a short list of benefits:
+
+ -> Much easier to use git and to share your code
+    
+ -> Do not need a GUI to run simulations (but you can use gtkwave or even 
+    Vivado to view outputs)
+    
+ -> Super duper fast! Simulations take only a split-second!
+
+I thought about trying Icarus Verilog a few months ago, but I was expecting it 
+to take a long time to get it working. Not so! It was _so_ smooth and painless, 
+and only took like 10 minutes to start using it!
+
+=========================
+INSTALLING ICARUS VERILOG
+=========================
+
+This is pretty easy. Most Linux distros have an iverilog package (I'm using 
+Manjaro), so just install it. Also consider installing gtkwave in order to look 
+at sim outputs.
+
+If the package is not in the repos, nothing to worry about: go to the main site 
+and find the link to the most recent source archive.
+
+    http://iverilog.icarus.com/
+
+Just compile it and install it. And just to give you an idea how smooth this 
+is, I compiled and installed Icarus Verilog on my home computer using MinGW. If 
+it compiles in MinGW, it'll compile on pretty much any Linux machine.
+
+
+====================
+USING ICARUS VERILOG
+====================
+
+This is super easy. Just run:
+
+    $ iverilog -o tb_output.vvp my_testbench.v
+
+This will compile my_testbench.v into a VVP file, whose name was selected to be 
+"tb_output.vvp". This VVP file is an intermediate representation of your 
+Verilog code in some kind of optimized assembly language (this is one reason 
+the simulations are very fast).
+
+To actually perform the simulation, run:
+    
+    $ vvp -o sim_output.vcd tb_output.vvp
+
+You may not actually want to look at a waveform; maybe your testbench just uses 
+$display statements to let you know if your unit tests succeeded. In this case, 
+the messages will print to the screen and you can omit the -o option.
+
+If you do want a waveform, then you can use gtkwave to open the VCD file. You 
+will be amazed how responsive it is.
+
+
+===================================================
+HOW TO GET YOUR TESTBENCH TO ADD SIGNALS TO THE VCD
+===================================================
+
+If you just tried the above commands on a testbench you were using in Vivado, 
+you may have wondered where the VCD file is.
+
+Icarus Verilog strictly follows the Verilog standards, so you need to use the 
+$dumpfile and $dumpvars commands (a quick Google search will tell you what you 
+need to know).

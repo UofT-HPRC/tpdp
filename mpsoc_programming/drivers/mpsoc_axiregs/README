@@ -74,8 +74,8 @@ int main(int argc, char **argv) {
 	char writing = 0;
 	if (argc == 3) {
 		writing = 1;
-		matches = sscanf(argv[2], "%u", &data);
-		if (matches != -1) {
+		matches = sscanf(argv[2], "%x", &data);
+		if (matches != 1) {
 			printf("Error: incorrect data format [%s]\n", argv[2]);
 			return -1;
 		}
