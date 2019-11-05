@@ -1,0 +1,107 @@
+========
+OVERVIEW
+========
+
+The fundamental data structure is the axilite_obj, which represents the device 
+registers you are accessing. (Behind the scenes, the library performs an mmap 
+call and saves the mapping information in this struct)
+
+Using the library proceeds in this fashion:
+
+ 1. Request access to the area of memory which contains the desired registers. 
+    (This is done with the axi_init function call, which returns an axilite_obj)
+    
+ 2. Read/write to your device
+    (This is done with the axi_read and axi_write functions, which make use of 
+    the axilite_obj returned from axi_init)
+
+That's it. 
+
+    Note: the attentive reader may wonder why you don't have to "close" the 
+    axilite_obj when you're done with it. Actually, you do have to; it's a 
+    deficiency of the library that it does not include a function for this. 
+    However, when your process exits, the Linux kernel will automatically clean 
+    up the memory mappings anyway (probably).
+
+
+==================
+FUNCTION REFERENCE
+==================
+
+struct axilite_obj axi_init (unsigned int base_address, unsigned int size)
+                   ********
+    
+    INFO:         Gets access to register spaces. Must be called before being
+                  able to read or write.
+    
+    base_address: The base physical address of your registers. This is usually
+                  identical to what you selected in Vivado's address editor.
+                  NOTE: this address must be page-aligned (i.e. lower 12 bits
+                  set to zero)
+    
+    size:         The size (in bytes) of your device's register space.
+                  NOTE: I think this must also be a multiple of the page size;
+                  anyway, I always set it to what the address editor says.
+    
+    return:       The mapping information associated with your device. This 
+                  object is needed in all the reading/writing calls
+
+
+unsigned int axi_read (struct axilite_obj axi_obj, unsigned int offset)
+             ********
+
+    INFO:    Used to read values from registers
+
+    axi_obj: The axilite_obj returned by axi_init
+    
+    offset:  The offset of the register you wish to access.
+             NOTE: this must be word-aligned (i.e. the lower two bits must be 0)
+             
+    return:  The 32-bit value at the specified offset
+    
+
+void axi_write (struct axilite_obj axi_obj, unsigned int offset, unsigned int value)
+     *********
+
+    INFO:    Used to write values to registers
+
+    axi_obj: The axilite_obj returned by axi_init
+    
+    offset:  The offset of the register you wish to access.
+             NOTE: this must be word-aligned (i.e. the lower two bits must be 0)
+             
+    value:   The 32-bit value to write at the specified offset
+
+
+int pl_clk_config (bool start, int clk_number, int divisor_1, int divisor_2, int type)
+    *************
+
+    INFO:       Changed the PLL divisors for one of the PL clocks. 
+                NOTE: to use the function, your program must be started with 
+                root privileges
+                
+    start:      Set to 0 to disable the clock, or set to 1 to enable it.
+    
+    clk_number: Which of the four PL clocks to set
+    
+    divisor_1:  The first PLL divisor. The clock's final output  frequency will 
+                be 800 MHz / (divisor1 * divisor2). Ignored when start = 0
+                
+    divisor_2:  The second PLL divisor. Ignored when start = 0
+    
+    type:       I think this selects the type of PLL, but I don't what you 
+                would put here. Sorry!
+
+=======
+EXAMPLE
+=======
+
+Suppose I have an AXI GPIO at address 0xA001000 with a 32 bit input on port 0 
+and a 32 bit output on port 1. Then, the code to access it might look like 
+this:
+
+    struct axilite_obj my_gpio = axi_init(0xA0010000, 0x1000);
+    unsigned my_input = axi_read(my_gpio, 0);
+    axi_write(my_gpio, 8, 0xDEADBEEF);
+
+Note that the second port on an AXI GPIO is at an offset of 8 bytes.

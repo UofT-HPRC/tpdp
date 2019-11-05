@@ -32,3 +32,6 @@ AXI interconnect hangs the ARM when only using debug bridge:
 	AXI Smart Connect IP to connect the PS to the debug bridge. If you use 
 	an AXI interconnect, it will hang the board. Even if you take into 
 	account Camilo's tip about having two masters at minimum.
+
+Other
+    Try using second master output (M01)

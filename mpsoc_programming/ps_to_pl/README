@@ -1,0 +1,21 @@
+This folder explains the PS-PL communcation libraries written by Clark and 
+Camilo. For posterity, the library source has been copied here, in the include/ 
+and util/ folders. The text files are meant to explain the API. 
+
+IMPORTANT: The features in this library depend on certain kernel modules to be 
+installed. This should already be done on the MPSoCs, but here's a reference of 
+which ones you need:
+  - mpsoc_axiregs.ko (see mpsoc_programming/drivers)
+  - mpsoc_PSRegs.ko (see mpsoc_programming/drivers)
+  - axidma.ko (from https://github.com/bperez77/xilinx_axidma)
+  - Xilinx DMAEngine driver (should already be compiled into kernel)
+
+
+If all you want to do is shuffle a few bytes around in registers, the API is 
+described in simple_register_accesses.txt and is fairly simple.
+
+If you want to do something more complicated (such as reading/writing to an AXI 
+Stream interface or performing DMA transfers) check out stream_and_dma.txt. 
+It's a little more involved, but not overly complicated.
+
+
