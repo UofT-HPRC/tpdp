@@ -14,3 +14,15 @@ Why do I have three different choices for the aliases file?
    
 -> marcos_aliases is my ongoing attempt to make a "final" aliases file, but I 
    can't guarantee it works 100% of the time
+
+
+UPDATE:
+
+There's this very annoying problem on the MPSoCs where accessing memory in the 
+FPGA could hang the board. This is because the AXI transaction may go 
+unanswered if one of your IP cores has a bug, or if there is simply no IP 
+listening at your particular address.
+
+If you run enableATB.sh as root, it will enable the ARM's AXI Timeout Blocks, 
+which will prevent this type of problem from hanging your board (which, to fix, 
+normally requires you to walk to the server room and press the reset button).
