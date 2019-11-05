@@ -7,6 +7,8 @@ function reference like in simple_register_access.txt. However, I though I
 would still provide a quick run-down of what we're trying to do, as well as an
 example.
 
+Please check the end of this document for some common pitfalls!
+
 ========
 OVERVIEW
 ========
@@ -110,3 +112,30 @@ that the device tree, driver, kernel, etc. are already set up correctly.
         
         ret:
         return rc;
+
+
+=======
+GOTCHAS
+=======
+
+No, of course, nothing could be that simple.
+
+The AXI DMA has some quirks which can complicate your life. Unfortunately, I've 
+never really understood them; Camilo has mentioned them to me but I haven't 
+looked into this in detail.
+
+Anyway, here is a list of things to know:
+
+ - The AXI DMA has an internal buffer when using stream-to-memory-mapped. This 
+   means that data will not be transferred until the buffer is full. That's so 
+   annoying, right? There is no easy way to read a single flit!
+
+ - The AXI DMA does have registers you can access. NEVER WRITE TO ANY OF THEM!
+   The drivers assume that they have total control over the AXI DMA's registers,
+   so technically, you shouldn't even be allowed to read them.
+
+ - Even though you shouldn't even read the registers, sometimes we will do 
+   exactly that. Somewhere in the register map there's a length register or 
+   something.
+   
+*sigh* I really need to ask Camilo about this again...
