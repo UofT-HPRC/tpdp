@@ -1,0 +1,16 @@
+This is something Camilo showed me the other day. I couldn't bvelieve I didn't
+know about it!
+
+Basically, I thought a simulation always required a testbench. Not so!
+
+You can simply run a behavioural simulation with your design set as the 
+top-level module (i.e. no testbench required). Then, right-click on all your 
+inputs (which will show as all Zs in the waveform) and just use the "force 
+clock" and "force value" functions. 
+
+Once you've set everything you want to set, manually step time forward (10 ns 
+is usually a good amount). Anytime you want to change the values, simply repeat 
+the forcing process before stepping time again.
+
+It's a little clunky, but it's a really fast way to test designs, especially 
+single-function HLS cores!
