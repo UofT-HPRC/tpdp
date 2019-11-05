@@ -17,40 +17,12 @@ Auto-generated AXI interconnects are correct about 50% of the time
 	thine AXI interconnects, lest thy little time on this Earth be 
 	squandered.
 
-"The [AXI] datawidth converter is a broken piece of garbage" - Camilo Vega
-	After yet more trouble with debug bridges hanging the board, Camilo 
-	pointed out a common flaw with the AXI interconnects: the automatic 
-	choice of the internal corssbar size will sometimes cause both a slave 
-	and a master to require datawidth conversion.
-	
-	Now, if the datawidth converter worked, this would not really be an 
-	issue. However, just one datawidth converter is potentially a problem, 
-	so two is definitely bad juju.
-	
-	In your AXI interconnect, turn on advanced configuration, and manually 
-	set the crossbar width to something reasonable.	 Good luck!
-
 Breaking out interface pins on a hierarchy:
 	In a Vivado block design, it is possible to have interface pins on a 
 	hierarchy. If, on the inside of the hierarchy, you connect the 
 	interface pin to something, but on the outside, you split open the 
 	hierarchy to connect individual wires, VIVADO WILL NOT CONNECT 
 	ANYTHING. It won't even warn you.
-	
-	
-100G subsystem expects "dense" LBUS signals:
-	The 100G ethernet subsystem assumes that your LBUS input is continuous. 
-	If you use Clark's AXIS to LBUS converter, this means you have to use a 
-	packet mode fifo on the AXIS input to the converter. Otherwise, if your 
-	TVALID signal goes low in the middle of a packet, the 100G core will 
-	output a packet with a bad frame check sequence.
-
-
-AXIS Data FIFOs do not have correct packet mode when two clocks are used:
-	Title says it all. Instead of one FIFO in packet mode with two clocks, 
-	instead use one small two-clock FIFO for the clock crossing, then plug 
-	that into a single-domain packet mode FIFO.
-
 
 AXI interconnect hangs the ARM when only using debug bridge:
 	In some projects the PS is only there to hook up an XVC server to 
@@ -58,33 +30,3 @@ AXI interconnect hangs the ARM when only using debug bridge:
 	AXI Smart Connect IP to connect the PS to the debug bridge. If you use 
 	an AXI interconnect, it will hang the board. Even if you take into 
 	account Camilo's tip about having two masters at minimum.
-	
-Debug bridge hangs Linux
-	The debug bridge can run at 100 MHz, but not at 200 MHz. I'm not sure 
-	what the maximum clock speed is.
-
-MPSoC does not have login prompt on serial
-	Sometimes, if your SSH is not working, you need a command line on an 
-	MPSoC. The easiest way to do this is plug in the JTAG cable and use 
-	
-		sudo screen /dev/ttyUSB0
-		
-	on the computer you connected it to.
-	
-	Problem is, sometimes that login prompt will not show up. At boot, it 
-	will say something like "starting a run job of getty..." and eventually 
-	time out.
-	
-	The solution is to remove the SD card, open up the files in another 
-	computer, go into /etc/systemd/system/getty.target.wants and copy the 
-	getty@tty1.service into getty@ttyPS0.service.
-
-MPSoC SSH does not start at boot
-	This happened to us after upgrading some packages. Essentially, there 
-	is a bug with a certain version of systemd where installing the package 
-	will change the owner of / (i.e. the root directory). Simply log on to 
-	the system (through the serial console) and type
-	
-		sudo chown root: /
-	
-	and that should fix the problem
