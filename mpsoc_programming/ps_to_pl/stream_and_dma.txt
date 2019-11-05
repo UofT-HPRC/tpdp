@@ -43,6 +43,9 @@ USAGE
         each direction. However, if you have multiple DMAs, then I think the 
         IDs returned in this array will correspond to whatever you set in the 
         device tree.
+        
+    Anyway, you have to give channel IDs in the transferring functions, so I 
+    guess it's just an annoying thing you have to do.
     
  4. (Optional) Register a callback using axidma_set_callback. If you want to 
     use asynchronous transfers you will need to do this.
