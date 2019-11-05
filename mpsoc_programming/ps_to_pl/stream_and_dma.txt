@@ -1,5 +1,109 @@
+This file is meant to explain how to use the axidma user library. It was 
+written by Brandon Perez and Jared Choi, as part of their excellent kernel 
+driver.
+
+The libaxidma.h file actually contains a lot of documentation, so I won't do a 
+function reference like in simple_register_access.txt. However, I though I 
+would still provide a quick run-down of what we're trying to do, as well as an
+example.
+
 ========
 OVERVIEW
 ========
 
+First of all, these functions assume that you have a correctly configured AXI
+DMA block in your design, and that all the drivers are working correctly.
 
+TYPES
+-----
+
+For this API, the fundamental object is the axidma_dev structure. I don't 
+really know what it's for, other than passing it into other library functions.
+
+The library also defines the following struct:
+
+    typedef struct array {
+        int len;        ///< Length of the array
+        int *data;      ///< Pointer to the memory buffer for the array
+    } array_t;
+
+
+USAGE
+-----
+
+ 1. Request access to the AXI DMA core. This is done with axidma_init.
+    
+ 2. Allocate memory which is accessible by the AXI DMA core and by your 
+    program. This is done with axidma_malloc. 
+    
+ 3. Get the list of available DMA channels. This is done with the 
+    axidma_get_rx_chans and axidma_get_tx_chans functions. This will return an 
+    array_t of IDs. 
+        NOTE: if you only have one AXI DMA, then there is only one channel for 
+        each direction. However, if you have multiple DMAs, then I think the 
+        IDs returned in this array will correspond to whatever you set in the 
+        device tree.
+    
+ 4. (Optional) Register a callback using axidma_set_callback. If you want to 
+    use asynchronous transfers you will need to do this.
+    
+ 5. Actually trigger the transfers. The only one I ever use is 
+    axidma_oneway_transfer, but there are some more exotic ones. You can ask it 
+    to be blocking or asynchronous.
+    
+ 6. Free the allocated memory block with axidma_free
+    
+ 7. Close everything with axidma_destroy. This will free all the resources used 
+    by the library, and this is important: if you don't do it, the driver could 
+    lock up because it thinks someone is still using it.
+
+=======
+EXAMPLE
+=======
+    
+This performs a single blocking receive of 128 bytes from the FPGA. It assumes 
+that the device tree, driver, kernel, etc. are already set up correctly.
+
+
+        #define TRANS_BYTES 128
+        
+        //Forward-declare variables
+        int rc = 0;
+        void *input_buf = NULL;
+        
+        // Initialize the AXIDMA device
+        axidma_dev = axidma_init();
+        if (axidma_dev == NULL) {
+                fprintf(stderr, "Error: Failed to initialize the AXI DMA device.\n");
+                rc = -1;
+                goto ret;
+        }
+
+        
+        //Allocate the memory
+        input_buf = axidma_malloc(axidma_dev, TRANS_BYTES);
+        if (input_buf == NULL) {
+                fprintf(stderr, "Failed to allocate the input buffer.\n");
+                rc = -ENOMEM;
+                goto destroy_axidma;
+        }
+
+        // Get the tx and rx channels
+        rx_chans = axidma_get_dma_rx(axidma_dev);
+        if (rx_chans->len < 1) {
+                fprintf(stderr, "Error: No receive channels were found.\n");
+                rc = -ENODEV;
+                goto free_buffer;
+        }
+        
+        //Perform PL to PS transfer of TRANS_BYTES size and put the data in input_buf (note this is a blocking system call)
+        rc = axidma_oneway_transfer(axidma_dev, rx_chans->data[0], input_buf, TRANS_BYTES, true);
+
+        free_buffer:
+        axidma_free(axidma_dev, input_buf, input_size);
+        
+        destroy_axidma:
+        axidma_destroy(axidma_dev);
+        
+        ret:
+        return rc;
