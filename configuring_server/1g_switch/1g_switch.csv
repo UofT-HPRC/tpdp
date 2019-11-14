@@ -1,0 +1,55 @@
+Port #,Connects to
+1,"Agent 1, port B"
+2,"Agent 2, port B"
+3,"Agent 3, port B"
+4,"Agent 4, port B"
+5,"Agent 31, port B"
+6,"Agent 6, port B"
+7,NC
+8,NC
+9,External (dangling)
+10,"Agent 11, port B"
+11,"Storage server, port B"
+12,(dangling cable)
+13,"HP machine, port A"
+14,"Layer 1 switch, port A"
+15,(dangling cable to Sean's stuff)
+16,Samsung Smart Home thing
+17,(dangling cable)
+18,MPSoC 3
+19,"Dick, port C"
+20,"Dick, port B"
+21,"Tom, port B"
+22,"Dick, port G"
+23,Arzhang's computer
+24,"Harry, port A"
+25,"Dick, port A"
+26,"Mohamed's machine, port A"
+27,NC
+28,"Harry, port B"
+29,MPSoC 19
+30,MPSoC 2
+31,MPSoC 18
+32,MPSoC 17
+33,MPSoC 4
+34,MPSoC 5
+35,MPSoC 6
+36,MPSoC 7
+37,MPSoC 8
+38,MPSoC 9
+39,MPSoC 10
+40,MPSoC 11
+41,MPSoC 12
+42,MPSoC 13
+43,MPSoC 14
+44,NC
+45,MPSoC 16
+46,External (463A-2)
+47,"100M switch, port 12"
+48,External (463A-7)
+49,"100G switch, port 33"
+50,NC
+51,NC
+52,NC
+A (serial),NC
+B (management),"100M switch, port 9"

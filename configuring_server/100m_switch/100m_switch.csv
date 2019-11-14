@@ -1,0 +1,25 @@
+Port #,Connects to
+1,"Dick, port D"
+2,"Agent 2, port A"
+3,"Agent 11, port A"
+4,"100G switch 2, port B"
+5,"Tom, port A"
+6,NC
+7,(dangling cable)
+8,"1G switch, port B"
+9,NC
+10,NC
+11,"1G switch, port 47"
+12,"Agent 1, port A"
+13,"Agent 4, port A"
+14,"Agent 3, port A"
+15,"Agent 6, port A"
+16,"Agent 31, port B"
+17,"Dick, port E"
+18,NC
+19,NC
+20,NC
+21,NC
+22,"10G switch, port A"
+23,NC
+24,NC
