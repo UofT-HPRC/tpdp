@@ -1,0 +1,55 @@
+Port #,Connects to
+1,"Dick, port F"
+2,NC
+3,NC
+4,NC
+5,(dangling cable)
+6,NC
+7,"HP Machine, port C"
+8,"HP Machine, port B"
+9,"Agent 1, port beta"
+10,"Agent 1, port alpha"
+11,"Agent 3, port beta"
+12,"Agent 6, port D"
+13,"Agent 3, port alpha"
+14,"Agent 2, port beta"
+15,"Agent 6, port E"
+16,"Agent 2, port alpha"
+17,NC
+18,NC
+19,NC
+20,NC
+21,NC
+22,NC
+23,NC
+24,NC
+25,NC
+26,NC
+27,NC
+28,NC
+29,NC
+30,(dangling cable)
+31,"Agent 11, port D"
+32,"(dangling cable, #24)"
+33,"Agent 2, port gamma"
+34,"Agent 2, port E"
+35,"Agent 2, port D"
+36,"Agent 3, port E"
+37,"Agent 3, port gamma"
+38,"Agent 2, port delta"
+39,"Agent 4, port D"
+40,"Agent 1, port delta"
+41,"Agent 31, port D"
+42,"(dangling cable, #21)"
+43,"Agent 3, delta"
+44,"(dangling cable, #22)"
+45,"Agent 1, delta"
+46,"Agent 3, port D"
+47,External (463A-3)
+48,"Storage server, port D"
+49,NC
+50,NC
+51,NC
+52,NC
+53,NC
+54,"100G switch 2, port 32"
