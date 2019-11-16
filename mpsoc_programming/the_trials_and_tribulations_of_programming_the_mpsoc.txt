@@ -308,9 +308,11 @@ Here is everything I know about it:
    
 	  (There is actually more to it: the ARM's interrupt controller has 
 	  some IRQ's reserved for interrupts from the FPGA fabric. If you 
-	  look up these numbers, they will actually start at 120. For some 
-	  reason, and yes this is true, you have to subtract 31 to get the 
+	  look up these numbers, they will actually start at 121. For some 
+	  reason, and yes this is true, you have to subtract 32 to get the 
 	  number you put into the device tree. No, I don't know why.)
+    
+    More info: http://billauer.co.il/blog/2012/08/irq-zynq-dts-cortex-a9/
 
  - Please oh please don't touch anything else. I don't know what it 
    does! The overlay mechanism is very fragile, and literally almost 

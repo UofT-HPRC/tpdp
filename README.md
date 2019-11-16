@@ -29,7 +29,8 @@ I don't really know how to do any of this, so I'll fill these in as I learn them
  - bash aliases used on the MPSoCs, and a script to enable AXI timeout checking
  - A neat little method Clark uses to compile HLS (I really like it). 
  - Some tcl utilities. For example, scripts that automatically configure the 
-   100G ethernet for the MPSoCs
+   100G ethernet for the MPSoCs.
+ - The Zynq presets for the MPSoC
 
 `ip_core_tidbits` is just meant to help you get started using common IPs. Right 
 now we have stuff on:
