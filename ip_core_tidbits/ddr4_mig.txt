@@ -32,17 +32,27 @@ Controller/PHY Mode:
     (grayed out)
 
 Memory Device Interface Speed:
-    Clark set this to 938 ps. I don't know where this number is from.
+    Clark set this to 938 ps. Depending on other choices in this tab (such as 
+    the Memory Part option) Vivado will give you an allowable range. You can 
+    pick whatever frequency you want*
+    
+        *Except no, obviously it's not that simple. You only have a couple of 
+        options: see the Clock Inputs/Outputs section).
 
 PHY to controller clock frequency ratio
-    Clark set this to 4:1. I don't know where he got this, either.
+    Set this to 4:1 (it's the only option, after all).
 
 Specify MMCM M and D...:
     Leave this unchecked. The last thing we want is more magic numbers to deal 
-    with...
+    with... anyway, what this is for is in case you want to twiddle the clock 
+    frequencies manually. There is no good reason to do this IMO.
 
 Reference Input Clock Speed:
-    Set this to 3001 ps. Add it to the list of unexplained numbers we're using.
+    Set this to 3001 ps AND NOTHING ELSE. From the Sidewinder manual, we know 
+    that we should use pins AT27 and AR27 as the (differential) reference clock 
+    source for the MIG. However, the manual fails to tell you what frequency is 
+    on these pins! The only way to find it is to look inside the sidewinder 
+    board file (which, may I remind you, we should NOT be using). 
 
 Controller Options section:
     While I can guess what this stuff means, I have no idea where the settings 
@@ -92,7 +102,7 @@ dangerously, you could fiddle around with stuff, but honestly I wouldn't touch
 it with a ten foot pole.
 
 Reference Input Clock Configuration:
-    Set this ti "Differential"
+    Set this to "Differential"
 
 Additional Clock Outputs:
     As you can guess, this enables extra clock outputs for you to use in your 
@@ -125,7 +135,6 @@ downloaded the design checklist and just looking at it gave me a few ulcers...
 but this is what you would do if you wanted to stop guessing blindly.
 
 
-
 ============
 BASIC WIRING
 ============
@@ -138,44 +147,738 @@ INPUTS
 ------
 
 C0_SYS_CLK:
-    Go ahead and check the product guide for the MIG. They don't tell you what 
-    this port is for. I'm not kidding! All I know is that Clark hooked it up to 
-    a clock on pins AR27 and AT27. I looked this up in the Sidewinder manual, 
-    but all I could discover was that this was an output of the programmable 
-    clock generator. I don't even know what the frequency is!
-    
-    See the contraints file section for (slightly) more info
+    The input reference clock. This is a differential clock input, and should 
+    be assigned to pins AR27 and AT27 (see the constraints section of this 
+    doc). Simply make it an external port on your block diagram.
     
 C0_DDR4_S_AXI:
-    AXI slave port. This is the port where you can write in your data.
+    AXI slave port. This is the port where you can write in your data. Its 
+    associated clock is c0_ddr4_ui_clk. 
 
 c0_ddr4_aresetn:
-    As you could have guessed, this is the reset input. In the traffic 
-    generator project, it comes from the global reset line (passed through a 
-    processor system reset, with input clock wired to the MIG's c0_ddr4_ui_clk 
-    output)
+    This resets the AXI control interface, but not the MIG itself. It should be 
+    synchronized to the c0_ddr4_ui_clk clock (in fact, Clark drives this pin 
+    from the c0_ddr4_ui_clk_sync_rst output).
 
 sys_rst:
-    Wait, what's with this second reset input?
+    This resets the entire core (including the calibration). I don't think this 
+    reset signal needs to be synchrnoized to any particular clock. The 
+    c0_ddr4_ui_clk_sync_rst is triggered by this reset signal (and is 
+    synchronized to the c0_ui_ddr_clk clock)
     
 
 OUTPUTS
 -------
 
 C0_DDR4:
-    This is 
+    This is the actual interface to the RAM chip. See the constraints section 
+    for information on assigning these signals to the correct pins. Simply make 
+    it an external port on your block diagram.
 
-	
+c0_init_clib_complete:
+    Goes high when calibration is complete. You odn't have to worry about 
+    checking this signal, since the core will take care of making AXI 
+    transaction wait for claibration.
+
+dbg_clk:
+    DO NOT CONNECT THIS PIN. See the clocks section (below).
+
+dbg_bus:
+    DO NOT CONNECT THIS BUS. Similarly to dbg_clk, this pin is reserved and 
+    doesn't do anything.
+
+c0_ddr4_ui_clk:
+    The "User Interface" clock. The AXI input bus is synchronized to this 
+    clock. Its frequency is one quarter of the RAM bus's frequency, and in the 
+    traffic generator project, is 266.5 MHz.
+
+c0_ddr4_ui_clk_sync_rst:
+    The sys_rst signal, which has been synchronized to the c0_ddr4_ui_clk 
+    clock. Clark connects this into the c0_ddr4_aresetn input.
 
 
-=====================================
-CLOCK INPUTS/OUTPUTS ON THE 100G CORE
-=====================================
+====================================
+CLOCK INPUTS/OUTPUTS ON THE MIG CORE
+====================================
 
+C0_SYS_CLK:
+    The "Reference input clock". The Sidewinder provides a clock with period 
+    3.001 ps on pins AR27 and AT27. Don't get fancy and try using a different 
+    set of clock pins; you must use these pins because they are the only ones 
+    physically close enough to the other DDR pins.
+    
+    Note: this frequency constrains the "Memory Device Interface Speed" 
+    parameter. Internally, the MIG instantiates an MMCM to produce the RAM bus 
+    clock from the reference clock. The preiod you choose has to be equal to 
+    (D/M)*3001 ps, where D and M are integers.
+    
+dbg_clk:
+    You might guess this is the clock associated to the debug outputs. In fact, 
+    you would be wrong. Here is a quote from the product guide:
+    
+    "Do not connect any signals to dbg_clk and keep the port open during 
+    instantiation."
+
+c0_ddr4_ui_clk:
+    The frequency generated internally for driving the MIG logic. It is chosen 
+    based on the clock frequency ratio parameter and is 1/4 the speed of the 
+    RAM bus clock.
 
 
 ============================
 WRITING THE CONSTRAINTS FILE
 ============================
 
+We have two jobs to do: one is to find the correct names for your design's 
+signals, and the second is to actually write the constraints file.
 
+GETTING CORRECT SIGNAL NAMES
+----------------------------
+
+Once you're done editing your block design, create an HDL wrapper for it. Once 
+that's done, go into your HDL wrapper and look at the module definition.
+
+Because the clock inputs to the block diagram are actually interface ports 
+(remember that we're using differential pairs), the HDL wrapper will 
+autogenerate names for the individual wires. We will need these names in the 
+constraints.
+
+For example, in Clark's traffic generator example, the name of the input port 
+for the C0_SYS_CLK (in the block diagram) is "C0_SYS_CLK_0". In the HDL 
+wrapper, it says:
+
+module SD_AXIS_traffic_gen_ex_wrapper
+   (C0_DDR4_0_act_n,
+    C0_DDR4_0_adr,
+    C0_DDR4_0_ba,
+    C0_DDR4_0_bg,
+    C0_DDR4_0_ck_c,
+    C0_DDR4_0_ck_t,
+    C0_DDR4_0_cke,
+    C0_DDR4_0_cs_n,
+    C0_DDR4_0_dm_n,
+    C0_DDR4_0_dq,
+    C0_DDR4_0_dqs_c,
+    C0_DDR4_0_dqs_t,
+    C0_DDR4_0_odt,
+    C0_DDR4_0_reset_n,
+    C0_SYS_CLK_0_clk_n,
+    C0_SYS_CLK_0_clk_p,
+    pcie_mgt_0_0_rxn,
+    pcie_mgt_0_0_rxp,
+    pcie_mgt_0_0_txn,
+    pcie_mgt_0_0_txp,
+    sys_clk_n,
+    sys_clk_p);
+
+Notice how "C0_SYS_CLK_0" became "C0_SYS_CLK_0_clk_n" and "C0_SYS_CLK_0_clk_p". 
+You can also see the other ports associated with the traffic generator project 
+(including some stuff for PCIe and, of coure, the other DDR4 pins).
+
+In the contraints file, these will appear as:
+
+    set_property PACKAGE_PIN AT27 [get_ports C0_SYS_CLK_0_clk_n]
+    set_property PACKAGE_PIN AR27 [get_ports C0_SYS_CLK_0_clk_p]
+
+
+WRITING THE CONSTRAINTS FILE
+----------------------------
+
+By now you might have noticed that the signal names all have the same format:
+
+    <BD port name>_<signal name>
+
+In the traffic generator example project, the C0_SYS_CLK input to the MIG is 
+connected to an external port on the block diagram called C0_SYS_CLK_0 (which 
+is the default name used when you right-click it and select "Make external"). 
+Also, the C0_DDR4 output is connected to an external port called C0_DDR4_0. If 
+your external ports have these exact names, then you can use the following 
+contraints without changing anything.
+
+If you did change the names of these external ports, you will have to do a 
+find+replace to exchange "C0_SYS_CLK_0" and "C0_DDR4_0" for whatever you 
+selected.
+
+So, without further ado, here are the constraints you should use:
+
+    ## DDR4###################################################
+    set_property IOSTANDARD DIFF_POD12_DCI [get_ports {C0_DDR4_0_dqs_c[0]}]
+    set_property IOSTANDARD DIFF_POD12_DCI [get_ports {C0_DDR4_0_dqs_c[1]}]
+    set_property IOSTANDARD DIFF_POD12_DCI [get_ports {C0_DDR4_0_dqs_c[2]}]
+    set_property IOSTANDARD DIFF_POD12_DCI [get_ports {C0_DDR4_0_dqs_c[3]}]
+    set_property IOSTANDARD DIFF_POD12_DCI [get_ports {C0_DDR4_0_dqs_c[4]}]
+    set_property IOSTANDARD DIFF_POD12_DCI [get_ports {C0_DDR4_0_dqs_c[5]}]
+    set_property IOSTANDARD DIFF_POD12_DCI [get_ports {C0_DDR4_0_dqs_c[6]}]
+    set_property IOSTANDARD DIFF_POD12_DCI [get_ports {C0_DDR4_0_dqs_c[7]}]
+    set_property IOSTANDARD DIFF_POD12_DCI [get_ports {C0_DDR4_0_dqs_t[0]}]
+    set_property IOSTANDARD DIFF_POD12_DCI [get_ports {C0_DDR4_0_dqs_t[1]}]
+    set_property IOSTANDARD DIFF_POD12_DCI [get_ports {C0_DDR4_0_dqs_t[2]}]
+    set_property IOSTANDARD DIFF_POD12_DCI [get_ports {C0_DDR4_0_dqs_t[3]}]
+    set_property IOSTANDARD DIFF_POD12_DCI [get_ports {C0_DDR4_0_dqs_t[4]}]
+    set_property IOSTANDARD DIFF_POD12_DCI [get_ports {C0_DDR4_0_dqs_t[5]}]
+    set_property IOSTANDARD DIFF_POD12_DCI [get_ports {C0_DDR4_0_dqs_t[6]}]
+    set_property IOSTANDARD DIFF_POD12_DCI [get_ports {C0_DDR4_0_dqs_t[7]}]
+    set_property IOSTANDARD DIFF_SSTL12_DCI [get_ports {C0_DDR4_0_ck_c[0]}]
+    set_property IOSTANDARD DIFF_SSTL12_DCI [get_ports {C0_DDR4_0_ck_c[1]}]
+    set_property IOSTANDARD DIFF_SSTL12_DCI [get_ports {C0_DDR4_0_ck_t[0]}]
+    set_property IOSTANDARD DIFF_SSTL12_DCI [get_ports {C0_DDR4_0_ck_t[1]}]
+    set_property IOSTANDARD LVCMOS12 [get_ports C0_DDR4_0_reset_n]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dm_n[0]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dm_n[1]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dm_n[2]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dm_n[3]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dm_n[4]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dm_n[5]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dm_n[6]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dm_n[7]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[0]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[10]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[11]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[12]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[13]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[14]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[15]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[16]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[17]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[18]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[19]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[1]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[20]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[21]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[22]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[23]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[24]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[25]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[26]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[27]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[28]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[29]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[2]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[30]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[31]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[32]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[33]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[34]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[35]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[36]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[37]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[38]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[39]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[3]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[40]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[41]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[42]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[43]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[44]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[45]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[46]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[47]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[48]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[49]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[4]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[50]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[51]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[52]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[53]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[54]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[55]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[56]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[57]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[58]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[59]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[5]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[60]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[61]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[62]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[63]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[6]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[7]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[8]}]
+    set_property IOSTANDARD POD12_DCI [get_ports {C0_DDR4_0_dq[9]}]
+    set_property IOSTANDARD SSTL12_DCI [get_ports C0_DDR4_0_act_n]
+    set_property IOSTANDARD SSTL12_DCI [get_ports {C0_DDR4_0_adr[0]}]
+    set_property IOSTANDARD SSTL12_DCI [get_ports {C0_DDR4_0_adr[10]}]
+    set_property IOSTANDARD SSTL12_DCI [get_ports {C0_DDR4_0_adr[11]}]
+    set_property IOSTANDARD SSTL12_DCI [get_ports {C0_DDR4_0_adr[12]}]
+    set_property IOSTANDARD SSTL12_DCI [get_ports {C0_DDR4_0_adr[13]}]
+    set_property IOSTANDARD SSTL12_DCI [get_ports {C0_DDR4_0_adr[14]}]
+    set_property IOSTANDARD SSTL12_DCI [get_ports {C0_DDR4_0_adr[15]}]
+    set_property IOSTANDARD SSTL12_DCI [get_ports {C0_DDR4_0_adr[16]}]
+    set_property IOSTANDARD SSTL12_DCI [get_ports {C0_DDR4_0_adr[1]}]
+    set_property IOSTANDARD SSTL12_DCI [get_ports {C0_DDR4_0_adr[2]}]
+    set_property IOSTANDARD SSTL12_DCI [get_ports {C0_DDR4_0_adr[3]}]
+    set_property IOSTANDARD SSTL12_DCI [get_ports {C0_DDR4_0_adr[4]}]
+    set_property IOSTANDARD SSTL12_DCI [get_ports {C0_DDR4_0_adr[5]}]
+    set_property IOSTANDARD SSTL12_DCI [get_ports {C0_DDR4_0_adr[6]}]
+    set_property IOSTANDARD SSTL12_DCI [get_ports {C0_DDR4_0_adr[7]}]
+    set_property IOSTANDARD SSTL12_DCI [get_ports {C0_DDR4_0_adr[8]}]
+    set_property IOSTANDARD SSTL12_DCI [get_ports {C0_DDR4_0_adr[9]}]
+    set_property IOSTANDARD SSTL12_DCI [get_ports {C0_DDR4_0_ba[0]}]
+    set_property IOSTANDARD SSTL12_DCI [get_ports {C0_DDR4_0_ba[1]}]
+    set_property IOSTANDARD SSTL12_DCI [get_ports {C0_DDR4_0_bg[0]}]
+    set_property IOSTANDARD SSTL12_DCI [get_ports {C0_DDR4_0_bg[1]}]
+    set_property IOSTANDARD SSTL12_DCI [get_ports {C0_DDR4_0_cke[0]}]
+    set_property IOSTANDARD SSTL12_DCI [get_ports {C0_DDR4_0_cke[1]}]
+    set_property IOSTANDARD SSTL12_DCI [get_ports {C0_DDR4_0_cs_n[0]}]
+    set_property IOSTANDARD SSTL12_DCI [get_ports {C0_DDR4_0_cs_n[1]}]
+    set_property IOSTANDARD SSTL12_DCI [get_ports {C0_DDR4_0_odt[0]}]
+    set_property IOSTANDARD SSTL12_DCI [get_ports {C0_DDR4_0_odt[1]}]
+    set_property SLEW FAST [get_ports C0_DDR4_0_act_n]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_adr[0]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_adr[10]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_adr[11]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_adr[12]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_adr[13]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_adr[14]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_adr[15]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_adr[16]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_adr[1]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_adr[2]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_adr[3]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_adr[4]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_adr[5]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_adr[6]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_adr[7]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_adr[8]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_adr[9]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_ba[0]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_ba[1]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_bg[0]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_bg[1]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_ck_c[0]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_ck_c[1]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_ck_t[0]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_ck_t[1]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_cke[0]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_cke[1]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_cs_n[0]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_cs_n[1]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dm_n[0]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dm_n[1]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dm_n[2]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dm_n[3]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dm_n[4]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dm_n[5]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dm_n[6]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dm_n[7]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[0]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[10]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[11]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[12]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[13]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[14]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[15]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[16]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[17]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[18]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[19]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[1]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[20]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[21]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[22]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[23]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[24]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[25]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[26]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[27]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[28]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[29]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[2]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[30]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[31]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[32]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[33]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[34]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[35]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[36]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[37]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[38]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[39]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[3]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[40]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[41]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[42]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[43]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[44]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[45]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[46]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[47]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[48]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[49]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[4]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[50]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[51]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[52]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[53]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[54]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[55]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[56]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[57]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[58]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[59]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[5]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[60]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[61]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[62]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[63]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[6]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[7]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[8]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dq[9]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dqs_c[0]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dqs_c[1]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dqs_c[2]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dqs_c[3]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dqs_c[4]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dqs_c[5]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dqs_c[6]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dqs_c[7]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dqs_t[0]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dqs_t[1]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dqs_t[2]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dqs_t[3]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dqs_t[4]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dqs_t[5]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dqs_t[6]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_dqs_t[7]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_odt[0]}]
+    set_property SLEW FAST [get_ports {C0_DDR4_0_odt[1]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports C0_DDR4_0_act_n]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_adr[0]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_adr[10]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_adr[11]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_adr[12]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_adr[13]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_adr[14]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_adr[15]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_adr[16]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_adr[1]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_adr[2]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_adr[3]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_adr[4]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_adr[5]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_adr[6]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_adr[7]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_adr[8]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_adr[9]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_ba[0]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_ba[1]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_bg[0]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_bg[1]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_ck_c[0]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_ck_c[1]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_ck_t[0]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_ck_t[1]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_cke[0]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_cke[1]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_cs_n[0]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_cs_n[1]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dm_n[0]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dm_n[1]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dm_n[2]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dm_n[3]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dm_n[4]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dm_n[5]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dm_n[6]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dm_n[7]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[0]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[10]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[11]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[12]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[13]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[14]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[15]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[16]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[17]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[18]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[19]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[1]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[20]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[21]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[22]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[23]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[24]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[25]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[26]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[27]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[28]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[29]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[2]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[30]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[31]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[32]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[33]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[34]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[35]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[36]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[37]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[38]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[39]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[3]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[40]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[41]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[42]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[43]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[44]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[45]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[46]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[47]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[48]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[49]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[4]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[50]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[51]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[52]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[53]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[54]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[55]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[56]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[57]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[58]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[59]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[5]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[60]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[61]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[62]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[63]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[6]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[7]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[8]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dq[9]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dqs_c[0]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dqs_c[1]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dqs_c[2]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dqs_c[3]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dqs_c[4]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dqs_c[5]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dqs_c[6]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dqs_c[7]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dqs_t[0]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dqs_t[1]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dqs_t[2]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dqs_t[3]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dqs_t[4]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dqs_t[5]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dqs_t[6]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_dqs_t[7]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_odt[0]}]
+    set_property OUTPUT_IMPEDANCE RDRV_40_40 [get_ports {C0_DDR4_0_odt[1]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dm_n[0]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dm_n[1]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dm_n[2]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dm_n[3]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dm_n[4]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dm_n[5]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dm_n[6]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dm_n[7]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[0]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[10]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[11]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[12]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[13]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[14]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[15]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[16]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[17]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[18]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[19]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[1]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[20]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[21]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[22]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[23]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[24]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[25]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[26]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[27]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[28]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[29]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[2]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[30]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[31]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[32]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[33]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[34]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[35]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[36]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[37]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[38]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[39]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[3]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[40]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[41]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[42]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[43]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[44]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[45]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[46]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[47]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[48]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[49]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[4]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[50]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[51]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[52]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[53]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[54]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[55]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[56]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[57]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[58]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[59]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[5]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[60]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[61]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[62]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[63]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[6]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[7]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[8]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dq[9]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dqs_c[0]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dqs_c[1]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dqs_c[2]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dqs_c[3]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dqs_c[4]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dqs_c[5]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dqs_c[6]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dqs_c[7]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dqs_t[0]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dqs_t[1]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dqs_t[2]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dqs_t[3]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dqs_t[4]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dqs_t[5]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dqs_t[6]}]
+    set_property IBUF_LOW_PWR FALSE [get_ports {C0_DDR4_0_dqs_t[7]}]
+    set_property PACKAGE_PIN AU26 [get_ports C0_DDR4_0_act_n]
+    set_property PACKAGE_PIN AR25 [get_ports {C0_DDR4_0_adr[10]}]
+    set_property PACKAGE_PIN AW26 [get_ports {C0_DDR4_0_adr[11]}]
+    set_property PACKAGE_PIN AN27 [get_ports {C0_DDR4_0_adr[12]}]
+    set_property PACKAGE_PIN AV24 [get_ports {C0_DDR4_0_adr[13]}]
+    set_property PACKAGE_PIN AM23 [get_ports {C0_DDR4_0_adr[14]}]
+    set_property PACKAGE_PIN AW25 [get_ports {C0_DDR4_0_adr[15]}]
+    set_property PACKAGE_PIN AV28 [get_ports {C0_DDR4_0_adr[16]}]
+    set_property PACKAGE_PIN AP27 [get_ports {C0_DDR4_0_adr[6]}]
+    set_property PACKAGE_PIN AV26 [get_ports {C0_DDR4_0_adr[7]}]
+    set_property PACKAGE_PIN AW27 [get_ports {C0_DDR4_0_adr[8]}]
+    set_property PACKAGE_PIN AV27 [get_ports {C0_DDR4_0_adr[9]}]
+    set_property PACKAGE_PIN AT28 [get_ports {C0_DDR4_0_ba[0]}]
+    set_property PACKAGE_PIN AM24 [get_ports {C0_DDR4_0_ba[1]}]
+    set_property PACKAGE_PIN AR28 [get_ports {C0_DDR4_0_bg[0]}]
+    set_property PACKAGE_PIN AN28 [get_ports {C0_DDR4_0_bg[1]}]
+    set_property PACKAGE_PIN AT23 [get_ports {C0_DDR4_0_ck_c[0]}]
+    set_property PACKAGE_PIN AR23 [get_ports {C0_DDR4_0_ck_t[0]}]
+    set_property PACKAGE_PIN AP25 [get_ports {C0_DDR4_0_ck_c[1]}]
+    set_property PACKAGE_PIN AP24 [get_ports {C0_DDR4_0_ck_t[1]}]
+    set_property PACKAGE_PIN AM28 [get_ports {C0_DDR4_0_cke[0]}]
+    set_property PACKAGE_PIN AU28 [get_ports {C0_DDR4_0_cke[1]}]
+    set_property PACKAGE_PIN AN24 [get_ports {C0_DDR4_0_cs_n[0]}]
+    set_property PACKAGE_PIN AK24 [get_ports {C0_DDR4_0_cs_n[1]}]
+    set_property PACKAGE_PIN AM19 [get_ports {C0_DDR4_0_dm_n[0]}]
+    set_property PACKAGE_PIN AT22 [get_ports {C0_DDR4_0_dm_n[1]}]
+    set_property PACKAGE_PIN AU23 [get_ports {C0_DDR4_0_dm_n[2]}]
+    set_property PACKAGE_PIN AW24 [get_ports {C0_DDR4_0_dm_n[3]}]
+    set_property PACKAGE_PIN AJ18 [get_ports {C0_DDR4_0_dm_n[4]}]
+    set_property PACKAGE_PIN AY17 [get_ports {C0_DDR4_0_dm_n[5]}]
+    set_property PACKAGE_PIN AV17 [get_ports {C0_DDR4_0_dm_n[6]}]
+    set_property PACKAGE_PIN AY12 [get_ports {C0_DDR4_0_dm_n[7]}]
+    set_property PACKAGE_PIN AJ22 [get_ports {C0_DDR4_0_dq[0]}]
+    set_property PACKAGE_PIN AP19 [get_ports {C0_DDR4_0_dq[10]}]
+    set_property PACKAGE_PIN AU19 [get_ports {C0_DDR4_0_dq[11]}]
+    set_property PACKAGE_PIN AN22 [get_ports {C0_DDR4_0_dq[12]}]
+    set_property PACKAGE_PIN AP20 [get_ports {C0_DDR4_0_dq[13]}]
+    set_property PACKAGE_PIN AR19 [get_ports {C0_DDR4_0_dq[14]}]
+    set_property PACKAGE_PIN AR20 [get_ports {C0_DDR4_0_dq[15]}]
+    set_property PACKAGE_PIN AW20 [get_ports {C0_DDR4_0_dq[16]}]
+    set_property PACKAGE_PIN AV21 [get_ports {C0_DDR4_0_dq[17]}]
+    set_property PACKAGE_PIN AW19 [get_ports {C0_DDR4_0_dq[18]}]
+    set_property PACKAGE_PIN AV22 [get_ports {C0_DDR4_0_dq[19]}]
+    set_property PACKAGE_PIN AK22 [get_ports {C0_DDR4_0_dq[1]}]
+    set_property PACKAGE_PIN AU20 [get_ports {C0_DDR4_0_dq[20]}]
+    set_property PACKAGE_PIN AW22 [get_ports {C0_DDR4_0_dq[21]}]
+    set_property PACKAGE_PIN AV19 [get_ports {C0_DDR4_0_dq[22]}]
+    set_property PACKAGE_PIN AU21 [get_ports {C0_DDR4_0_dq[23]}]
+    set_property PACKAGE_PIN BA28 [get_ports {C0_DDR4_0_dq[24]}]
+    set_property PACKAGE_PIN BA25 [get_ports {C0_DDR4_0_dq[25]}]
+    set_property PACKAGE_PIN BB24 [get_ports {C0_DDR4_0_dq[26]}]
+    set_property PACKAGE_PIN AY27 [get_ports {C0_DDR4_0_dq[27]}]
+    set_property PACKAGE_PIN BB28 [get_ports {C0_DDR4_0_dq[28]}]
+    set_property PACKAGE_PIN BB25 [get_ports {C0_DDR4_0_dq[29]}]
+    set_property PACKAGE_PIN AM21 [get_ports {C0_DDR4_0_dq[2]}]
+    set_property PACKAGE_PIN AY25 [get_ports {C0_DDR4_0_dq[30]}]
+    set_property PACKAGE_PIN AY28 [get_ports {C0_DDR4_0_dq[31]}]
+    set_property PACKAGE_PIN AN17 [get_ports {C0_DDR4_0_dq[32]}]
+    set_property PACKAGE_PIN AL16 [get_ports {C0_DDR4_0_dq[33]}]
+    set_property PACKAGE_PIN AM16 [get_ports {C0_DDR4_0_dq[34]}]
+    set_property PACKAGE_PIN AP16 [get_ports {C0_DDR4_0_dq[35]}]
+    set_property PACKAGE_PIN AN18 [get_ports {C0_DDR4_0_dq[36]}]
+    set_property PACKAGE_PIN AL18 [get_ports {C0_DDR4_0_dq[37]}]
+    set_property PACKAGE_PIN AM18 [get_ports {C0_DDR4_0_dq[38]}]
+    set_property PACKAGE_PIN AN16 [get_ports {C0_DDR4_0_dq[39]}]
+    set_property PACKAGE_PIN AM20 [get_ports {C0_DDR4_0_dq[3]}]
+    set_property PACKAGE_PIN BA16 [get_ports {C0_DDR4_0_dq[40]}]
+    set_property PACKAGE_PIN BB16 [get_ports {C0_DDR4_0_dq[41]}]
+    set_property PACKAGE_PIN AY14 [get_ports {C0_DDR4_0_dq[42]}]
+    set_property PACKAGE_PIN BA13 [get_ports {C0_DDR4_0_dq[43]}]
+    set_property PACKAGE_PIN AW17 [get_ports {C0_DDR4_0_dq[44]}]
+    set_property PACKAGE_PIN AW16 [get_ports {C0_DDR4_0_dq[45]}]
+    set_property PACKAGE_PIN AY15 [get_ports {C0_DDR4_0_dq[46]}]
+    set_property PACKAGE_PIN BB13 [get_ports {C0_DDR4_0_dq[47]}]
+    set_property PACKAGE_PIN AR17 [get_ports {C0_DDR4_0_dq[48]}]
+    set_property PACKAGE_PIN AT17 [get_ports {C0_DDR4_0_dq[49]}]
+    set_property PACKAGE_PIN AJ21 [get_ports {C0_DDR4_0_dq[4]}]
+    set_property PACKAGE_PIN AT15 [get_ports {C0_DDR4_0_dq[50]}]
+    set_property PACKAGE_PIN AT16 [get_ports {C0_DDR4_0_dq[51]}]
+    set_property PACKAGE_PIN AU18 [get_ports {C0_DDR4_0_dq[52]}]
+    set_property PACKAGE_PIN AV18 [get_ports {C0_DDR4_0_dq[53]}]
+    set_property PACKAGE_PIN AU15 [get_ports {C0_DDR4_0_dq[54]}]
+    set_property PACKAGE_PIN AU16 [get_ports {C0_DDR4_0_dq[55]}]
+    set_property PACKAGE_PIN AU14 [get_ports {C0_DDR4_0_dq[56]}]
+    set_property PACKAGE_PIN AW14 [get_ports {C0_DDR4_0_dq[57]}]
+    set_property PACKAGE_PIN BA10 [get_ports {C0_DDR4_0_dq[58]}]
+    set_property PACKAGE_PIN BB10 [get_ports {C0_DDR4_0_dq[59]}]
+    set_property PACKAGE_PIN AJ20 [get_ports {C0_DDR4_0_dq[5]}]
+    set_property PACKAGE_PIN AW15 [get_ports {C0_DDR4_0_dq[60]}]
+    set_property PACKAGE_PIN AV14 [get_ports {C0_DDR4_0_dq[61]}]
+    set_property PACKAGE_PIN BB11 [get_ports {C0_DDR4_0_dq[62]}]
+    set_property PACKAGE_PIN BA11 [get_ports {C0_DDR4_0_dq[63]}]
+    set_property PACKAGE_PIN AL22 [get_ports {C0_DDR4_0_dq[6]}]
+    set_property PACKAGE_PIN AL21 [get_ports {C0_DDR4_0_dq[7]}]
+    set_property PACKAGE_PIN AT20 [get_ports {C0_DDR4_0_dq[8]}]
+    set_property PACKAGE_PIN AP22 [get_ports {C0_DDR4_0_dq[9]}]
+    set_property PACKAGE_PIN AK19 [get_ports {C0_DDR4_0_dqs_c[0]}]
+    set_property PACKAGE_PIN AK20 [get_ports {C0_DDR4_0_dqs_t[0]}]
+    set_property PACKAGE_PIN AP21 [get_ports {C0_DDR4_0_dqs_c[1]}]
+    set_property PACKAGE_PIN AN21 [get_ports {C0_DDR4_0_dqs_t[1]}]
+    set_property PACKAGE_PIN AY18 [get_ports {C0_DDR4_0_dqs_c[2]}]
+    set_property PACKAGE_PIN AY19 [get_ports {C0_DDR4_0_dqs_t[2]}]
+    set_property PACKAGE_PIN BB26 [get_ports {C0_DDR4_0_dqs_c[3]}]
+    set_property PACKAGE_PIN BA26 [get_ports {C0_DDR4_0_dqs_t[3]}]
+    set_property PACKAGE_PIN AK17 [get_ports {C0_DDR4_0_dqs_c[4]}]
+    set_property PACKAGE_PIN AJ17 [get_ports {C0_DDR4_0_dqs_t[4]}]
+    set_property PACKAGE_PIN BB15 [get_ports {C0_DDR4_0_dqs_c[5]}]
+    set_property PACKAGE_PIN BA15 [get_ports {C0_DDR4_0_dqs_t[5]}]
+    set_property PACKAGE_PIN AT18 [get_ports {C0_DDR4_0_dqs_c[6]}]
+    set_property PACKAGE_PIN AR18 [get_ports {C0_DDR4_0_dqs_t[6]}]
+    set_property PACKAGE_PIN AV13 [get_ports {C0_DDR4_0_dqs_c[7]}]
+    set_property PACKAGE_PIN AU13 [get_ports {C0_DDR4_0_dqs_t[7]}]
+    set_property PACKAGE_PIN AK23 [get_ports {C0_DDR4_0_odt[0]}]
+    set_property PACKAGE_PIN AJ24 [get_ports {C0_DDR4_0_odt[1]}]
+    set_property PACKAGE_PIN AT25 [get_ports C0_DDR4_0_reset_n]
+    set_property PACKAGE_PIN AT27 [get_ports C0_SYS_CLK_0_clk_n]
+    set_property PACKAGE_PIN AR27 [get_ports C0_SYS_CLK_0_clk_p]
+    set_property PACKAGE_PIN AU25 [get_ports {C0_DDR4_0_adr[0]}]
+    set_property PACKAGE_PIN AN26 [get_ports {C0_DDR4_0_adr[1]}]
+    set_property PACKAGE_PIN AR24 [get_ports {C0_DDR4_0_adr[2]}]
+    set_property PACKAGE_PIN AP26 [get_ports {C0_DDR4_0_adr[3]}]
+    set_property PACKAGE_PIN AN23 [get_ports {C0_DDR4_0_adr[4]}]
+    set_property PACKAGE_PIN AU24 [get_ports {C0_DDR4_0_adr[5]}]
+    set_property PROHIBIT true [get_bels IOB_X0Y100/PAD]
+    set_property PROHIBIT true [get_bels IOB_X0Y103/PAD]
+    ################################################################
+
+    # In case you were wondering, Clark put these together by writing a script to 
+    # parse the Sidewinder board file. The relevant file is in 
+
+    # VIVADO/data/boards/board_files_Sidewinder-Boardfile/1.0/part0_pins.xml
