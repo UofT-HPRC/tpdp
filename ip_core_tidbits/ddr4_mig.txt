@@ -1,0 +1,181 @@
+This file is my meek attempt to help you set up the DDR4 memory interface 
+generator (MIG) on the MPSoCs.
+
+DDR is quite complicated, and so is the MIG. There's a lof of stuff I don't 
+understand about it, so as usual, what's in this file is mostly stuff that 
+Clark did that I am just copying.
+
+
+================================
+IMPORTANT: READ BEFORE STARTING!
+================================
+
+I don't know why, but you can't use the sidewinder board file in your project. 
+Instead, use the MPSoC's FPGA part number (xczu19eg-ffvc1760-2-i).
+
+For some unfathomable reason, when you're using a board file, the MIG has extra 
+inputs that I have no idea what to do with.
+
+Anyway, in general, it's better to use constraints files than board files. 
+Vivado can be eye-wateringly stupid, so talk to it in a language it 
+understands!
+
+
+=============
+CONFIGURATION
+=============
+
+BASIC TAB
+---------
+
+Controller/PHY Mode:
+    (grayed out)
+
+Memory Device Interface Speed:
+    Clark set this to 938 ps. I don't know where this number is from.
+
+PHY to controller clock frequency ratio
+    Clark set this to 4:1. I don't know where he got this, either.
+
+Specify MMCM M and D...:
+    Leave this unchecked. The last thing we want is more magic numbers to deal 
+    with...
+
+Reference Input Clock Speed:
+    Set this to 3001 ps. Add it to the list of unexplained numbers we're using.
+
+Controller Options section:
+    While I can guess what this stuff means, I have no idea where the settings 
+    came from! I really need to ask Clark at the next group meeting...
+
+    Enable Custom Parts Data File = (unchecked)
+    Custom Parts Data File        = (grayed out)
+    Configuration                 = SODIMMs
+    Memory Part                   = MTA16ATF2G64HZ-2G3
+    Slot                          = Single
+    IO Memory Voltage             = 1.2V
+    Data Width                    = 64
+    ECC                           = (grayed out)
+    Data Mask and DBI             = DM NO DBI
+    Memory Address Map            = ROW COLUMN BANK
+    Ordering                      = Normal
+    Force Read and Write...       = (unchecked)
+
+Memory Options section:
+    Burst length      = (grayed out)
+    Cas Latency       = 15
+    Cas Write Latency = 14
+
+Advanced User Request Controller Options:
+    Enable AutoPrecharge Input         = (grayed out)
+    Enable User Refresh and ZQCS Input = (unchecked)
+
+
+AXI OPTIONS TAB
+---------------
+
+You could probably put whatever you want in here, but for reference, here are 
+values used in Clark's 100G traffic generator project
+
+Data Width         = 512
+Arbitration Scheme = RD PRI REG
+ID Width           = (auto)
+Address Width      = 34
+ASI Narrow Burst   = (auto)
+
+
+ADVANCED CLOCKING TAB
+---------------------
+
+The whole "Specify M and D" section should be grayed out. If you like to live 
+dangerously, you could fiddle around with stuff, but honestly I wouldn't touch 
+it with a ten foot pole.
+
+Reference Input Clock Configuration:
+    Set this ti "Differential"
+
+Additional Clock Outputs:
+    As you can guess, this enables extra clock outputs for you to use in your 
+    design. In the traffic generator project, we don't use them, so we set them 
+    all to "None".
+
+
+ADVANCED OPTIONS TAB
+--------------------
+
+Oddly, even though I don't understand the Basic tab, I do sort of know what's 
+going on here. Anyway, here are the values we use:
+
+Debug Signals for controller = Disable
+Microblaze MCS ECC option    = (unchecked)
+Simulation Mode              = BFM
+Example Design Test Bench    = (grayed out)
+Enable Self Refresh          = (unchecked)
+Enable Save-Restore          = (unchecked)
+Disable OBUF on reset_n      = (grayed out)
+Enable Migration             = (unchecked)
+
+
+I/O PLANNING AND DESIGN CHECKLIST TAB
+-------------------------------------
+
+Xilinx was nice enough to leave you a bunch of links since they realized that 
+anybody trying to use the MIG would be like "WTF is going on here". I once 
+downloaded the design checklist and just looking at it gave me a few ulcers...
+but this is what you would do if you wanted to stop guessing blindly.
+
+
+
+============
+BASIC WIRING
+============
+
+If you /don't/ have a port that /is/ mentioned here, or
+if you /have/ a port that /is not/ mentioned here, 
+it means that you should double-check your configuration.
+
+INPUTS
+------
+
+C0_SYS_CLK:
+    Go ahead and check the product guide for the MIG. They don't tell you what 
+    this port is for. I'm not kidding! All I know is that Clark hooked it up to 
+    a clock on pins AR27 and AT27. I looked this up in the Sidewinder manual, 
+    but all I could discover was that this was an output of the programmable 
+    clock generator. I don't even know what the frequency is!
+    
+    See the contraints file section for (slightly) more info
+    
+C0_DDR4_S_AXI:
+    AXI slave port. This is the port where you can write in your data.
+
+c0_ddr4_aresetn:
+    As you could have guessed, this is the reset input. In the traffic 
+    generator project, it comes from the global reset line (passed through a 
+    processor system reset, with input clock wired to the MIG's c0_ddr4_ui_clk 
+    output)
+
+sys_rst:
+    Wait, what's with this second reset input?
+    
+
+OUTPUTS
+-------
+
+C0_DDR4:
+    This is 
+
+	
+
+
+=====================================
+CLOCK INPUTS/OUTPUTS ON THE 100G CORE
+=====================================
+
+
+
+============================
+WRITING THE CONSTRAINTS FILE
+============================
+
+
