@@ -878,7 +878,8 @@ So, without further ado, here are the constraints you should use:
     set_property PROHIBIT true [get_bels IOB_X0Y103/PAD]
     ################################################################
 
-    # In case you were wondering, Clark put these together by writing a script to 
-    # parse the Sidewinder board file. The relevant file is in 
-
-    # VIVADO/data/boards/board_files_Sidewinder-Boardfile/1.0/part0_pins.xml
+    # In case you were wondering, Clark put this together from the Sidewinder 
+    # master constraints file, which can be found from the Fidus website. Just
+    # go to the sidewinder product page, click "Documentation and Examples", and
+    # go into the "Schematic, Pin Mapping, Board File, and Mechanincal" folder.
+    # FYI Clark wrote a little script to generate the final constraints.
