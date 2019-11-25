@@ -1,7 +1,12 @@
 # The PC Group Documentation Project
 
 Yes, we have a wiki. The reason for this repo is because I want to spend some 
-little time explaining source code as well as uploading helpful bash scripts
+time explaining source code as well as uploading helpful bash/TCL scripts
+
+# Other related repos:
+
+https://github.com/UofT-HPRC/mpsoc_drivers
+
 
 # Contents
 

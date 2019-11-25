@@ -1,0 +1,25 @@
+These are two really simple programs to manually read/write registers in the 
+FPGA. They're also really handy to put in a shell script.
+
+Basically, 
+
+    $ poke 0xA0001000
+
+will print out whatever is at the 32 bit word at 0xA0001000.
+
+    $ poke 0xA0001000 1010
+
+will write the HEX VALUE 0x1010 (=4112) to 0xA0001000.
+
+
+Finally,
+
+    $dpoke 0xA0001000 1010
+
+will write the DECIMAL VALUE one-thousand-and-ten to 0xA0001000.
+
+
+
+
+These programs use the mpsoc_axiregs driver, which was written by Clark. The 
+source code is provided in mpsoc_programming/drivers/mpsoc_axiregs

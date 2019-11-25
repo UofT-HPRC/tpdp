@@ -1,3 +1,13 @@
+/*
+
+Driver originally written by Clark and Camilo.
+
+(Nov12, 2019) Marco found some stuff online and cleaned up the code.
+* See samples/kobject/kobject-example.c in the kernel source tree.
+* (https://elixir.bootlin.com/linux/latest/source/samples/kobject/kobject-example.c)
+
+*/
+
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/module.h>
@@ -26,25 +36,16 @@
 
 int base_freq = 800;
 
-volatile int pl0hex;
-volatile int pl1hex;
-volatile int pl2hex;
-volatile int pl3hex;
-volatile int pl0freq;
-volatile int pl1freq;
-volatile int pl2freq;
-volatile int pl3freq;
-volatile int pl0ena;
-volatile int pl1ena;
-volatile int pl2ena;
-volatile int pl3ena;
-
-static void * pl0clk_virt;
-static void * pl1clk_virt;
-static void * pl2clk_virt;
-static void * pl3clk_virt;
-
-struct kobject *mpsoc_root, *clocks, *fclk0, *fclk1, *fclk2, *fclk3;
+struct plclk {
+    struct kobject *kobj;
+    int hex;
+    int freq;
+    int ena;
+    void *clk_virt;
+    
+    struct kobj_attribute attr_ena;
+    struct kobj_attribute attr_freq;
+};
 
 int freq_find(int freq) {
 	int minIndex = 32;
@@ -59,36 +60,41 @@ int freq_find(int freq) {
 	return minIndex;
 }
 
-static ssize_t pl0ena_show(struct device *dev, struct device_attribute *attr, char *buf)
+static ssize_t ena_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%d\n", pl0ena);
+    struct plclk *clk = container_of(attr, struct plclk, attr_ena);
+	return sprintf(buf, "%d\n", clk->ena);
 }
 
-static ssize_t pl0ena_store(struct device *dev, struct device_attribute *attr,const char *buf, size_t count)
+static ssize_t ena_store(struct kobject *kobj, struct kobj_attribute *attr,const char *buf, size_t count)
 {
+    struct plclk *clk = container_of(attr, struct plclk, attr_ena);
 	int enatmp;
 	if (sscanf(buf,"%d",&enatmp) != 1) {
 		printk(KERN_ERR "it is illegal to write non-numeric value to mpsoc regs!\n");
 		return count;
 	}
-	pl0ena = enatmp ? 1 : 0;
-	pl0hex = (((pl0hex & ENABLE_MASK_INV) | ((pl0ena << 24) & ENABLE_MASK)) & ENABLE_AWAYS_TRUE_INV) | ENABLE_AWAYS_TRUE;
-	if (pl0ena) {
-		printk(KERN_INFO "enabling PL CLK0\n");
+    
+	clk->ena = enatmp ? 1 : 0;
+	clk->hex = (((clk->hex & ENABLE_MASK_INV) | ((clk->ena << 24) & ENABLE_MASK)) & ENABLE_AWAYS_TRUE_INV) | ENABLE_AWAYS_TRUE;
+	if (clk->ena) {
+		printk(KERN_INFO "enabling %s\n", kobj->name);
 	} else {
-		printk(KERN_INFO "disabling PL CLK0\n");
+		printk(KERN_INFO "disabling %s\n", kobj->name);
 	}
-	writel(pl0hex,pl0clk_virt);
+	writel(clk->hex,clk->clk_virt);
 	return count;
 }
 
-static ssize_t pl0freq_show(struct device *dev,	struct device_attribute *attr, char *buf)
+static ssize_t freq_show /* "freak show" */ (struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%d MHz\n", pl0freq);
+    struct plclk *clk = container_of(attr, struct plclk, attr_freq);
+	return sprintf(buf, "%d MHz\n", clk->freq);
 }
 
-static ssize_t pl0freq_store(struct device *dev, struct device_attribute *attr,const char *buf, size_t count)
+static ssize_t freq_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
 {
+    struct plclk *clk = container_of(attr, struct plclk, attr_freq);
 	int freqtmp;
 	int divider;
 	if (sscanf(buf,"%d",&freqtmp) != 1) {
@@ -96,207 +102,72 @@ static ssize_t pl0freq_store(struct device *dev, struct device_attribute *attr,c
 		return count;
 	}
 	divider = freq_find(freqtmp);
-	pl0freq = base_freq / divider;
-	printk(KERN_INFO "changing PL CLK0's frequency to %d\n", pl0freq);
-	pl0hex = (pl0hex & FREQ_MASK_INV) | ((divider << 8) & FREQ_MASK);
-	writel(pl0hex,pl0clk_virt);
+	clk->freq = base_freq / divider;
+	printk(KERN_INFO "changing %s's frequency to %d\n", kobj->name, clk->freq);
+	clk->hex = (clk->hex & FREQ_MASK_INV) | ((divider << 8) & FREQ_MASK);
+	writel(clk->hex, clk->clk_virt);
 	return count;
 }
 
-static ssize_t pl1ena_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-        return sprintf(buf, "%d\n", pl1ena);
-}
-
-static ssize_t pl1ena_store(struct device *dev, struct device_attribute *attr,const char *buf, size_t count)
-{
-        int enatmp;
-        if (sscanf(buf,"%d",&enatmp) != 1) {
-                printk(KERN_ERR "it is illegal to write non-numeric value to mpsoc regs!\n");
-                return count;
-        }
-        pl1ena = enatmp ? 1 : 0;
-        pl1hex = (((pl1hex & ENABLE_MASK_INV) | ((pl1ena << 24) & ENABLE_MASK)) & ENABLE_AWAYS_TRUE_INV) | ENABLE_AWAYS_TRUE;
-        if (pl1ena) {
-                printk(KERN_INFO "enabling PL CLK1\n");
-        } else {
-                printk(KERN_INFO "disabling PL CLK1\n");
-        }
-        writel(pl1hex,pl1clk_virt);
-        return count;
-}
-
-static ssize_t pl1freq_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-        return sprintf(buf, "%d MHz\n", pl1freq);
-}
-
-static ssize_t pl1freq_store(struct device *dev, struct device_attribute *attr,const char *buf, size_t count)
-{
-        int freqtmp;
-        int divider;
-        if (sscanf(buf,"%d",&freqtmp) != 1) {
-                printk(KERN_ERR "it is illegal to write non-numeric value to mpsoc regs!\n");
-                return count;
-        }
-        divider = freq_find(freqtmp);
-        pl1freq = base_freq / divider;
-        printk(KERN_INFO "changing PL CLK1's frequency to %d\n", pl1freq);
-        pl1hex = (pl1hex & FREQ_MASK_INV) | ((divider << 8) & FREQ_MASK);
-        writel(pl1hex,pl1clk_virt);
-        return count;
-}
-
-static ssize_t pl2ena_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-        return sprintf(buf, "%d\n", pl2ena);
-}
-
-static ssize_t pl2ena_store(struct device *dev, struct device_attribute *attr,const char *buf, size_t count)
-{
-        int enatmp;
-        if (sscanf(buf,"%d",&enatmp) != 1) {
-                printk(KERN_ERR "it is illegal to write non-numeric value to mpsoc regs!\n");
-                return count;
-        }
-        pl2ena = enatmp ? 1 : 0;
-        pl2hex = (((pl2hex & ENABLE_MASK_INV) | ((pl2ena << 24) & ENABLE_MASK)) & ENABLE_AWAYS_TRUE_INV) | ENABLE_AWAYS_TRUE;
-        if (pl2ena) {
-                printk(KERN_INFO "enabling PL CLK2\n");
-        } else {
-                printk(KERN_INFO "disabling PL CLK2\n");
-        }
-        writel(pl2hex,pl2clk_virt);
-        return count;
-}
-
-static ssize_t pl2freq_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-        return sprintf(buf, "%d MHz\n", pl2freq);
-}
-
-static ssize_t pl2freq_store(struct device *dev, struct device_attribute *attr,const char *buf, size_t count)
-{
-        int freqtmp;
-        int divider;
-        if (sscanf(buf,"%d",&freqtmp) != 1) {
-                printk(KERN_ERR "it is illegal to write non-numeric value to mpsoc regs!\n");
-                return count;
-        }
-        divider = freq_find(freqtmp);
-        pl2freq = base_freq / divider;
-        printk(KERN_INFO "changing PL CLK2's frequency to %d\n", pl2freq);
-        pl2hex = (pl2hex & FREQ_MASK_INV) | ((divider << 8) & FREQ_MASK);
-        writel(pl2hex,pl2clk_virt);
-        return count;
-}
-
-static ssize_t pl3ena_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-        return sprintf(buf, "%d\n", pl3ena);
-}
-
-static ssize_t pl3ena_store(struct device *dev, struct device_attribute *attr,const char *buf, size_t count)
-{
-        int enatmp;
-        if (sscanf(buf,"%d",&enatmp) != 1) {
-                printk(KERN_ERR "it is illegal to write non-numeric value to mpsoc regs!\n");
-                return count;
-        }
-        pl3ena = enatmp ? 1 : 0;
-        pl3hex = (((pl3hex & ENABLE_MASK_INV) | ((pl3ena << 24) & ENABLE_MASK)) & ENABLE_AWAYS_TRUE_INV) | ENABLE_AWAYS_TRUE;
-        if (pl3ena) {
-                printk(KERN_INFO "enabling PL CLK3\n");
-        } else {
-                printk(KERN_INFO "disabling PL CLK3\n");
-        }
-        writel(pl3hex,pl3clk_virt);
-        return count;
-}
-
-static ssize_t pl3freq_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-        return sprintf(buf, "%d MHz\n", pl3freq);
-}
-
-static ssize_t pl3freq_store(struct device *dev, struct device_attribute *attr,const char *buf, size_t count)
-{
-        int freqtmp;
-        int divider;
-        if (sscanf(buf,"%d",&freqtmp) != 1) {
-                printk(KERN_ERR "it is illegal to write non-numeric value to mpsoc regs!\n");
-                return count;
-        }
-        divider = freq_find(freqtmp);
-        pl3freq = base_freq / divider;
-        printk(KERN_INFO "changing PL CLK3's frequency to %d\n", pl3freq);
-        pl3hex = (pl3hex & FREQ_MASK_INV) | ((divider << 8) & FREQ_MASK);
-        writel(pl3hex,pl3clk_virt);
-        return count;
-}
-
-static struct device_attribute pl0clkena = __ATTR(enable, 0664, pl0ena_show, pl0ena_store);
-static struct device_attribute pl0clkfreq = __ATTR(frequency, 0664, pl0freq_show, pl0freq_store);
-static struct device_attribute pl1clkena = __ATTR(enable, 0664, pl1ena_show, pl1ena_store);
-static struct device_attribute pl1clkfreq = __ATTR(frequency, 0664, pl1freq_show, pl1freq_store);
-static struct device_attribute pl2clkena = __ATTR(enable, 0664, pl2ena_show, pl2ena_store);
-static struct device_attribute pl2clkfreq = __ATTR(frequency, 0664, pl2freq_show, pl2freq_store);
-static struct device_attribute pl3clkena = __ATTR(enable, 0664, pl3ena_show, pl3ena_store);
-static struct device_attribute pl3clkfreq = __ATTR(frequency, 0664, pl3freq_show, pl3freq_store);
+static struct plclk pl_clocks[4];
+static struct kobject *mpsoc_root, *clocks;
 
 static int __init mpsoc_psregs_init(void) {
+    int i;
 	mpsoc_root = kobject_create_and_add("mpsoc",NULL);
 	clocks = kobject_create_and_add("clocks",mpsoc_root); 
-	fclk0 = kobject_create_and_add("fclk0",clocks);
-	fclk1 = kobject_create_and_add("fclk1",clocks);
-	fclk2 = kobject_create_and_add("fclk2",clocks);
-	fclk3 = kobject_create_and_add("fclk3",clocks);
-	if (sysfs_create_file(fclk0,&pl0clkfreq.attr)) return 1;
-	if (sysfs_create_file(fclk0,&pl0clkena.attr)) return 1;
-	if (sysfs_create_file(fclk1,&pl1clkfreq.attr)) return 1;
-	if (sysfs_create_file(fclk1,&pl1clkena.attr)) return 1;
-	if (sysfs_create_file(fclk2,&pl2clkfreq.attr)) return 1;
-	if (sysfs_create_file(fclk2,&pl2clkena.attr)) return 1;
-	if (sysfs_create_file(fclk3,&pl3clkfreq.attr)) return 1;
-	if (sysfs_create_file(fclk3,&pl3clkena.attr)) return 1;
-	pl0clk_virt = ioremap_nocache(CLK_BASE+PLCLK0,4);
-	pl1clk_virt = ioremap_nocache(CLK_BASE+PLCLK1,4);
-	pl2clk_virt = ioremap_nocache(CLK_BASE+PLCLK2,4);
-	pl3clk_virt = ioremap_nocache(CLK_BASE+PLCLK3,4);
-	pl0hex = readl(pl0clk_virt);
-	pl1hex = readl(pl1clk_virt);
-	pl2hex = readl(pl2clk_virt);
-	pl3hex = readl(pl3clk_virt);
-	pl0ena = pl0hex >> 24;
-	pl1ena = pl1hex >> 24;
-	pl2ena = pl2hex >> 24;
-	pl3ena = pl3hex >> 24;
-	pl0freq = base_freq / ((pl0hex & FREQ_MASK) >> 8);
-	pl1freq = base_freq / ((pl1hex & FREQ_MASK) >> 8);
-	pl2freq = base_freq / ((pl2hex & FREQ_MASK) >> 8);
-	pl3freq = base_freq / ((pl3hex & FREQ_MASK) >> 8);
+    
+    pl_clocks[0].clk_virt = ioremap_nocache(CLK_BASE+PLCLK0,4);
+    pl_clocks[1].clk_virt = ioremap_nocache(CLK_BASE+PLCLK1,4);
+    pl_clocks[2].clk_virt = ioremap_nocache(CLK_BASE+PLCLK2,4);
+    pl_clocks[3].clk_virt = ioremap_nocache(CLK_BASE+PLCLK3,4);
+    
+    for (i = 0; i < 4; i++) {        
+        int retval;
+        char name[8];
+        sprintf(name, "fclk%d", i);
+        pl_clocks[i].kobj = kobject_create_and_add(name, clocks);
+        
+        pl_clocks[i].hex = readl(pl_clocks[i].clk_virt);
+        pl_clocks[i].ena = pl_clocks[i].hex >> 24;
+        pl_clocks[i].freq = base_freq / ((pl_clocks[i].hex & FREQ_MASK) >> 8);
+        
+        pl_clocks[i].attr_ena.attr.name = "enable";
+        pl_clocks[i].attr_ena.attr.mode = 0664;
+        pl_clocks[i].attr_ena.show = ena_show;
+        pl_clocks[i].attr_ena.store = ena_store;
+        
+        pl_clocks[i].attr_freq.attr.name = "frequency";
+        pl_clocks[i].attr_freq.attr.mode = 0664;
+        pl_clocks[i].attr_freq.show = freq_show;
+        pl_clocks[i].attr_freq.store = freq_store;
+        
+        retval = sysfs_create_file(pl_clocks[i].kobj, &(pl_clocks[i].attr_ena.attr));
+        if (retval) {
+            printk(KERN_ERR "Everything is now broken! Please reboot!");
+            //The error-handling code is messy enough that I don't want to write
+            //it. The user will have to reboot.
+            return retval;
+        }
+        
+        retval = sysfs_create_file(pl_clocks[i].kobj, &(pl_clocks[i].attr_freq.attr));
+        if (retval) {
+            printk(KERN_ERR "Everything is now broken! Please reboot!");
+            return retval;
+        }
+    }
+
 	printk(KERN_INFO "Finished registering MPSOC sysfs register file group!\n");
 	return 0;
 }
  
 void __exit mpsoc_psregs_exit(void)
 {
-	iounmap(pl0clk_virt);
-	iounmap(pl1clk_virt);
-	iounmap(pl2clk_virt);
-	iounmap(pl3clk_virt);
-	sysfs_remove_file(fclk0, &pl0clkfreq.attr);
-	sysfs_remove_file(fclk0, &pl0clkena.attr);
-	sysfs_remove_file(fclk1, &pl1clkfreq.attr);
-	sysfs_remove_file(fclk1, &pl1clkena.attr);
-	sysfs_remove_file(fclk2, &pl2clkfreq.attr);
-	sysfs_remove_file(fclk2, &pl2clkena.attr);
-	sysfs_remove_file(fclk3, &pl3clkfreq.attr);
-	sysfs_remove_file(fclk3, &pl3clkena.attr);
-	kobject_put(fclk0);
-	kobject_put(fclk1);
-	kobject_put(fclk2);
-	kobject_put(fclk3);
+    int i;
+    for (i = 0; i < 4; i++)	{
+        iounmap(pl_clocks[i].clk_virt);
+        kobject_put(pl_clocks[i].kobj);
+	}
 	kobject_put(clocks);
 	kobject_put(mpsoc_root);
 	printk(KERN_INFO "Finished unregistering MPSOC sysfs register file group!\n");
