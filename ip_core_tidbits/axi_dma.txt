@@ -1,0 +1,38 @@
+This document tries to do two things:
+    - Try to explain general use of the core
+    - Sepcifically explain how to configure it for PS-PL
+
+The AXI DMA is (for the time being) a necessity if you want to allow the PS to 
+communicate with AXI Stream interfaces in the PL. This guide talks only about 
+configuring and wiring the IP core; there are many steps you must also do in 
+Linux to get it up and running. Please refer to 
+mpsoc_programming/ps_to_pl/stream_and_dma.txt
+
+
+=============
+CONFIGURATION
+=============
+
+
+
+
+============
+BASIC WIRING
+============
+
+If you /don't/ have a port that /is/ mentioned here, or
+if you /have/ a port that /is not/ mentioned here, 
+it means that you should double-check your configuration.
+
+
+
+
+====================================
+CLOCK INPUTS/OUTPUTS ON THE MIG CORE
+====================================
+
+
+
+============================
+WRITING THE CONSTRAINTS FILE
+============================

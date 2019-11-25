@@ -30,3 +30,11 @@ AXI interconnect hangs the ARM when only using debug bridge:
 	AXI Smart Connect IP to connect the PS to the debug bridge. If you use 
 	an AXI interconnect, it will hang the board. Even if you take into 
 	account Camilo's tip about having two masters at minimum.
+
+(Auto-generated) constraints ignored in synthesis
+    For unknown reasons, sometimes Vivado will uncheck "Used in synthesis" on 
+    XDC files in your IP cores. Go to the "Sources" tab, then click "IP 
+    Sources" at the bottom. Search for ".xdc" to see all constraints files. 
+    Sometimes, in the properties, "Used in synthesis" will be unchecked (and 
+    grayed out). To check it, right-click on the XDC file in the sources list 
+    and click "Set used in..."

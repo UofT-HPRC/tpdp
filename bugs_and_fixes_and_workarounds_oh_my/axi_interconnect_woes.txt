@@ -33,5 +33,14 @@ AXI interconnect hangs the ARM when only using debug bridge:
 	an AXI interconnect, it will hang the board. Even if you take into 
 	account Camilo's tip about having two masters at minimum.
 
+Bus interface property property ID_WIDTH does not match...
+    Specifically, your AXI interconnect doesn't seem to be correctly adapting a 
+    master interface to a slave interface. This is an obscure bug in Vivado's 
+    variable propagation. Even if you delete the interconnect and remake it, 
+    the problem will probably persist.
+    
+    The solution is to change your interconnect strategy to optimize for area, 
+    rerun validation, then change it back to whatever you were using.
+
 Other
     Try using second master output (M01)

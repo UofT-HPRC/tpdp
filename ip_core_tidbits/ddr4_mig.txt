@@ -151,14 +151,18 @@ C0_SYS_CLK:
     be assigned to pins AR27 and AT27 (see the constraints section of this 
     doc). Simply make it an external port on your block diagram.
     
+    Quick note: once you have configured the core, you have to generate output 
+    products for this port's properties to be updated. If you don't, you'll get 
+    a critical warning when you validate your block design.
+    
 C0_DDR4_S_AXI:
     AXI slave port. This is the port where you can write in your data. Its 
     associated clock is c0_ddr4_ui_clk. 
 
 c0_ddr4_aresetn:
-    This resets the AXI control interface, but not the MIG itself. It should be 
-    synchronized to the c0_ddr4_ui_clk clock (in fact, Clark drives this pin 
-    from the c0_ddr4_ui_clk_sync_rst output).
+    Active-low. This resets the AXI control interface, but not the MIG itself. 
+    It should be synchronized to the c0_ddr4_ui_clk clock (in fact, Clark 
+    drives this pin from the negation of c0_ddr4_ui_clk_sync_rst output).
 
 sys_rst:
     This resets the entire core (including the calibration). I don't think this 
@@ -175,10 +179,10 @@ C0_DDR4:
     for information on assigning these signals to the correct pins. Simply make 
     it an external port on your block diagram.
 
-c0_init_clib_complete:
+c0_init_calib_complete:
     Goes high when calibration is complete. You odn't have to worry about 
     checking this signal, since the core will take care of making AXI 
-    transaction wait for claibration.
+    transaction wait for calibration.
 
 dbg_clk:
     DO NOT CONNECT THIS PIN. See the clocks section (below).
@@ -193,8 +197,8 @@ c0_ddr4_ui_clk:
     traffic generator project, is 266.5 MHz.
 
 c0_ddr4_ui_clk_sync_rst:
-    The sys_rst signal, which has been synchronized to the c0_ddr4_ui_clk 
-    clock. Clark connects this into the c0_ddr4_aresetn input.
+    Active-high. The sys_rst signal, which has been synchronized to the 
+    c0_ddr4_ui_clk clock. Clark connects this into the c0_ddr4_aresetn input.
 
 
 ====================================
