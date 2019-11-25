@@ -116,6 +116,14 @@ compiler installed. Most Linux distributions have a "dtc" package in
 their official repos.
 
 
+    WHEN CAN YOU AVOID DEVICE TREES? 
+    --------------------------------
+    Basically, if all you need is access to a few registers, then you just need 
+    the bin file. Follow the directions in ps_to_pl/simple_register_accesses.txt
+    
+    Skip over this entire section, and skip any device-tree related 
+    instructions in the "Actually programming the FPGA" section.
+
 Background on device trees and device tree overlays
 ---------------------------------------------------
 
@@ -359,31 +367,51 @@ $ dtc -O dtb -o my_output.dtbo -b 0 -@ my_thing.dtsi
 ACTUALLY PROGRAMMING THE FPGA 
 =============================
 
-You need a lot of stuff in place for this to work:
+    IF YOU SKIPPED THE DEVICE TREES:
+    Any of the instructions marked with a [*] should be skipped here.
 
-- Clark's Linux setup should have all the necessary drivers for PCAP 
-  (PCAP is the name given to the hardened circuit in the PS which is 
-  used for programming the FPGA fabric).
-  
-- Mount the configfs filesystem (needed for applying device tree 
-  overlays)
 
-- Clark and Camilo have written some  bash commands which you will 
-  need. They are in the helpful_scripts/mpsoc_bash_stuff/clarks_aliases 
-  file. I provided the one Camilo was using just for reference. I also 
-  have my own version, which I don't feel like explaining
-  
-- You will disablePci.sh in /root/disablePci.sh. I have provided this 
-  file in helpful_scripts/mpsoc_bash_stuff
-  
-- (If using PS to PL) Xilinx's AXI DMA kernel API (included in the 
-  kernel) 
+PREREQUISITES
+-------------
 
-- (If using PS to PL) The axidma.ko driver (which should be somewhere 
-  in the home folder)
+(Note: you don't have to read this; it's more of a checklist for when you're 
+troubleshooting)
 
-In order to program the FPGA (with support for the PS to PL 
-communication), you will need to perform the following steps:
+The following infrastructure should already be installed on the MPSoCs: 
+
+    - Clark's Linux setup should have all the necessary drivers for PCAP 
+      (PCAP is the name given to the hardened circuit in the PS which is 
+      used for programming the FPGA fabric).
+      
+    - <*> Mount the configfs filesystem (needed for applying device tree 
+      overlays)
+
+    - Clark and Camilo have created some bash commands which you will need. 
+      These commands are in /root/.bash_aliases
+            
+      For reference, I have provided this file in
+        
+        helpful_scripts/mpsoc_bash_stuff/clarks_aliases
+      
+      Notice that there are three variations: clarks_aliases, camilos_aliases, 
+      and marcos_aliases. They all do the same thing, just with different inner 
+      workings. I have used Camilo's and my own aliases file with no problems, 
+      but it's probably safest to use Clark's.
+      
+    - If using Camilo's aliases, you need /root/disablePci.sh. I have provided 
+      this file in helpful_scripts/mpsoc_bash_stuff
+      
+    - (If using PS to PL) Xilinx's AXI DMA kernel API (included in the 
+      kernel) 
+
+    - (If using PS to PL) The axidma.ko driver (which should be somewhere 
+      in the home folder)
+
+
+INSTRUCTIONS
+-------------
+
+In order to program the FPGA, you will need to perform the following steps:
 
 1. (If using PS to PL) Insert the axidma.ko module, if it hasn't been 
    done already. There is a copy of it in /home/savi/drivers/axidma.ko 
@@ -399,30 +427,41 @@ communication), you will need to perform the following steps:
    (You don't need to do this step if you use clark's or my aliases 
    file)
 
-3. Copy your .bin and .dtbo files into /lib/firmware. I don't really 
-   know why we have to do this; I guess something about the device tree 
-   and search paths or something...
+3. Copy your .bin file into /lib/firmware. If you have a .dtbo from making a 
+   device tree, copy that too. You must do this, since only this folder is 
+   searched when programming the bitstream.
    
    $ cp my.bin /lib/firmware/my.bin
-   $ cp my.dtbo /lib/firmware/my.dtbo
+[*]$ cp my.dtbo /lib/firmware/my.dtbo
 
 4. After doing a sudo su, issue the set clocks command as: 
 
    $ set_clocks freq1 [freq2] [freq3] [freq4] 
 
-   to match the CPU outputs clock frequencies you set in your block 
-   diagram. 
+   to match the CPU outputs clock frequencies you set in your block diagram. 
+   The frequencies should be given in MHz, and you can safely round to the 
+   nearest integer
    
 	  NOTE: This is something the mpsoc_PSegs driver could take care of 
 	  automatically, but I am still working on it
 
-5. Navigate to /lib/firmware and install the device tree overlay:
+5. ONLY if you DID NOT make a device tree, simply run:
 
+   $ sudo su
+   $ program my.bin
+   
+   You can run this command from any folder, but please note that it will ONLY 
+   search for the file "my.bin" in the "/lib/firmware" folder. It WILL NOT 
+   search your current folder!
+   
+   [*] If, instead, you did make a device tree, perform:
+   
+   $ sudo su
    $ overlay_reprogram my_overlay.dtbo
 
-   This will also program the bitstrem
+   Similarly to the program command, this command only searches /lib/firmware
 
-6. (Optional) Verify that the axidma driver recognized your stuff. 
+6. (If using PS-to-PL) Verify that the axidma driver recognized your stuff. 
    It'll say something like "1 transmit and 1 receive channel found" in 
    dmesg.
 
@@ -434,13 +473,10 @@ USING ILAS
 (This is a quick-and-dirty reference. A more full description can be 
 found on our wiki.)
 
-Again, I am assuming you are using the system that Clark has put in 
-place. It should contain a program called "xvcserver", which I think is 
-a modified version of the program at https://github.com/tmbinc/xvcd, or 
-maybe the one at https://github.com/Xilinx/XilinxVirtualCable. 
-Honestly, I don't know where he got it. And by the way, I'm pretty sure 
-it needs a driver in the kernel, too. So that's another thing that 
-Clark has set up.
+Again, I am assuming you are using the system that Clark has put in place. It 
+should contain a program called "xvcserver". I have provided the source code 
+for this program in mpsoc_programming/xvc_server. See that directory for more 
+info.
 
 Anyway, to use ILAs, you need to do the following:
 
@@ -449,14 +485,15 @@ Anyway, to use ILAs, you need to do the following:
    will assume you mapped it to address 0xA0010000
    
 2) For the love of all things holy save your .ltx file 
-   (vivadoproj/runs/impl_1/) somewhere alongside your bitstream. If 
+   (vivadoproj/runs/impl_1/thing.ltx) somewhere alongside your bitstream. If 
    not, then you will have a random bitstream with ILAs you can't use.
    
 3) After programming the FPGA, run this command from inside the MPSoC:
 
    $ xvcserver -a 0xA0010000 -d
 
-   This will start the XVC server on the MPSoC.
+   This will start the XVC server on the MPSoC. Again, replace 0xA0010000 with 
+   the debug bridge's base address in the address editor.
    
 4) Use ssh to tunnel port 2542 from the MPSoC to whatever port you want 
    on your local computer. You can do this from inside a running SSH 
@@ -479,7 +516,7 @@ PS TO PL COMMUNICATION
 ======================
 
 (This is a quick-and-dirty reference. A more full description can be 
-found on our wiki.)
+found on our wiki, and in mpsoc_programming/ps_to_pl)
 
 This is a little complicated. Here is a summary of the many moving 
 parts:

@@ -1,0 +1,17 @@
+If you are somehow already on the 10.10.14.X subnet, then simply perform:
+
+    $ ssh savi@10.10.14.20X
+
+where X is the MPSoC number. For example, to SSH into MPSoC 15, you would use 
+10.10.14.215.
+
+
+
+If you are connecting from elsewhere on the internet, perform:
+
+    $ ssh -p 234YY savi@142.150.179.130
+
+where YY is the MPSoC number. For MPSoC 15, this would be 23415.
+
+For extra safety, I will not put the password in this repo. Please contact 
+someone in person and we will give it to you.
