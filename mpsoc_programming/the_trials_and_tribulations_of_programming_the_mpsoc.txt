@@ -411,7 +411,9 @@ The following infrastructure should already be installed on the MPSoCs:
 INSTRUCTIONS
 -------------
 
-In order to program the FPGA, you will need to perform the following steps:
+In order to program the FPGA, you will need to perform the following steps on 
+the MPSoC. If you don't know how to ssh into your MPSoC, check 
+sshing_into_the_mpsoc.txt in this folder
 
 1. (If using PS to PL) Insert the axidma.ko module, if it hasn't been 
    done already. There is a copy of it in /home/savi/drivers/axidma.ko 

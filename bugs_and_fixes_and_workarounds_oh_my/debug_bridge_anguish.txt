@@ -5,6 +5,30 @@ AXI interconnect hangs the ARM when only using debug bridge:
 	an AXI interconnect, it will hang the board. Even if you take into 
 	account Camilo's tip about having two masters at minimum.
 
-Debug bridge hangs Linux
+Debug bridge hangs Linux:
 	The debug bridge can run at 100 MHz, but not at 200 MHz. I'm not sure 
 	what the maximum clock speed is.
+    
+    By the way, check out the enableATB.sh script in 
+    helpful_scripts/mpsoc_bash_stuff. This will turn on the ARM's built-in AXI 
+    Timeout Blocks, which prevent bad memory accesses from hanging the whole 
+    board.
+
+Vivado picks bad clocks for the debug hub:
+    If you open your synthesized or implemented design, you can see which clock 
+    is being used for the debug hub. For some reason, I had a DDR MIG in my 
+    project, and Vivado connected the debug hub to the dbg_clk output of the 
+    MIG. However, the documentation for the MIG specifically says never to 
+    connect anything to this port.
+    
+    Here is the solution. Open up your design (I think you have to open the 
+    synthesized design) and select the clock that you want to connect to the 
+    debug hub. Go into its properties to get the net name, and substitute it 
+    into this TCL command:
+    
+    connect_debug_port dbg_hub/clk [get_nets some/clk/net/in/your/design]
+    
+    Then just place this command in a constraints file. Good luck!
+    
+    EXTRA NOTE: You can create a brand new clock wizard specifically for the 
+    debug hub.
