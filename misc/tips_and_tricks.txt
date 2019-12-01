@@ -79,6 +79,35 @@ CD search path
 	some_folder and (unless some_folder is in my current directory) it will 
 	take my to /home/marco/some_folder
 
+ulimit
+    Sometimes a program might blow up and use all your memory, and basically 
+    freeze up your system. To prevent this, you can use ulimit.
+    
+    Running ulimit (with the correct parameters) inside a bash shell will cause 
+    the shell and all its child processes to be set special flags that tell the 
+    kernel to kill the process under certain conditions.
+    
+    Run 
+    
+    $ ulimit -a 
+    
+    to see a list of all options you can set.
+    
+    Keep in mind that there are two limits: soft limits and hard limits. 
+    Essentially, any process can change its soft limit, and can lower its hard 
+    limit, but only a root process can raise its hard limit. I just use soft 
+    limits and that works for me. 
+    
+    For example,
+    
+    $ ulimit -Sm 5242880
+    
+    sets the memory soft limit to 5 GB.
+    
+    $ ulimit -Sm unlimited
+    
+    removes the restriction
+
 ======================
 GENERAL SYSADMIN STUFF
 ======================

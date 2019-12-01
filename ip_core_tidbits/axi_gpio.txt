@@ -1,0 +1,21 @@
+The AXI GPIO block is not very difficult to use, and the product guide will be 
+able to explain how to use it.
+
+There is one problem that I ran into though, based on a specific use case for 
+AXI GPIOs: setting configuration inputs for a core.
+
+You see, it's a real pain in the ass to make an AXI Lite config bus for a 
+Verilog core. Oh yes, it can be done using AirHDL, but it's a lot of extra 
+effort. Wouldn't it be nice to just use a GPIO block?
+
+Well, it is a lot nicer, but you have to set false paths on the inputs to your 
+core. I like to use Vivado's "Edit timing constraints" GUI. Use "double-click 
+to create new false path constraint...". Don't put anything in "from" or "to", 
+and just put the input pins to your core in "through". I do this by searching 
+for the right PARENT_CELL and checkign for DIRECTION=IN. Make sure "Cell pins" 
+is selected in the dropdown at the top.
+
+
+Anwyay, I know that's not a great description, but I'm busy with other things 
+today and I just wanted to write a quick blurb before I forgot. Send me a 
+message if you need more info.
