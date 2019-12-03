@@ -2,6 +2,14 @@ This is a list of things that caused me to lose (a lot of) time. Eventually, I
 will try to find a better way to organize this so that it's easier to search 
 through.
 
+Simple Dual Port BRAMs simply do not work
+    No, not the inference from Verilog, and not even the BRAM_SDP_MACRO. If you 
+    run synthesis and check the schematic, you will find that the read and 
+    write enables; the read and write addresses; as well as the read and write 
+    data are all pairwise flipped.
+    
+    In other words, it's a bug! It's broken! It's kaputt!
+
 Auto-generated AXI interconnects are correct about 50% of the time
 	It's true! Even if you run validate design (which propagates 
 	parameters), AXI Interconnects can still be DEAD WRONG*. This is the 
