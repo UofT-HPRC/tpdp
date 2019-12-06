@@ -1,0 +1,65 @@
+Probably the most useful thing I do in HLS is to make a little IP core that 
+looks like this:
+
+         (From PS)
+              |             +---------------------------+
+              +------------>|S_AXI                      |
+                            |                           |
+                     ------>|X[31:0]             A[20:0]|------->
+(from some other IP)------->|Y[63:0]                   B|-------->(to some other IP)
+                     ------>|Z                   C[31:0]|------->
+                            |>                          |
+                            +---------------------------+
+
+Basically, this lets you map random wires/buses in your design into the PS's 
+address space. This is especially handy when you write primarily in Verilog 
+(like me). Even if you don't primarily write in Verilog, it's a pain in the ass 
+to write testbenches that involve AXI Lite, so it's often useful to write a 
+version of your core which doesn't use AXI Lite, then just add this extra core 
+to it when you want to implement it on the FPGA.
+
+Luckily, this is one of the things HLS works really for, and it's super easy! 
+The technique is so simple that I've only bothered to include the source code.
+
+The only other thing you need to know is are the memory addresses that HLS gave 
+your wires. Simply go into YOUR_HLS_PROJECT/solution1/impl/verilog. There will 
+be a file here that ends in AxiliteS_s_axi". In it, you will find a big comment 
+that looks something like:
+
+(note: this is from one of my actual projects)
+
+    //------------------------Address Info-------------------
+    // 0x00 : reserved
+    // 0x04 : reserved
+    // 0x08 : reserved
+    // 0x0c : reserved
+    // 0x10 : Data signal of num_packets_dropped_axilite_V
+    //        bit 15~0 - num_packets_dropped_axilite_V[15:0] (Read)
+    //        others   - reserved
+    // 0x14 : Control signal of num_packets_dropped_axilite_V
+    //        bit 0  - num_packets_dropped_axilite_V_ap_vld (Read/COR)
+    //        others - reserved
+    // 0x18 : Data signal of mode_axilite_V
+    //        bit 31~0 - mode_axilite_V[31:0] (Read/Write)
+    // 0x1c : reserved
+    // 0x20 : Data signal of num_packets_axilite_V
+    //        bit 31~0 - num_packets_axilite_V[31:0] (Read/Write)
+    // 0x24 : reserved
+    // 0x28 : Data signal of num_flits_axilite_V
+    //        bit 31~0 - num_flits_axilite_V[31:0] (Read/Write)
+    // 0x2c : reserved
+    // 0x30 : Data signal of last_flit_bytes_axilite_V
+    //        bit 31~0 - last_flit_bytes_axilite_V[31:0] (Read/Write)
+    // 0x34 : reserved
+    // 0x38 : Data signal of M_axilite_V
+    //        bit 31~0 - M_axilite_V[31:0] (Read/Write)
+    // 0x3c : reserved
+    // 0x40 : Data signal of N_axilite_V
+    //        bit 31~0 - N_axilite_V[31:0] (Read/Write)
+    // 0x44 : reserved
+    // (SC = Self Clear, COR = Clear on Read, TOW = Toggle on Write, COH = Clear on Handshake)
+
+If I used the address editor to put my core at 0xA0001000, then num_packets 
+would be at address 0xA0001000 + 0x20 = 0xA0001020.
+
+TOOD: Write out an example that matches the diagram I drew in this file
