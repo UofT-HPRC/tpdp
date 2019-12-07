@@ -1,3 +1,14 @@
+My MPSoC hangs whenever I try to access the PL!
+    This happens when an AXI transaction doesn't get a response from the PL. In 
+    this case, the PS will wait forever for a transaction that will be 
+    answered. I do have a workaround for this: copy 
+    helpful_scripts/mpsoc_bash_stuff/enableATB.sh to your MPSoC and run it as 
+    root. It requires the devmem2 program, which is easily installed via
+    
+        sudo apt-get install devmem2
+    
+    (The devmem2 program is generally useful, so you may want it anyway)
+
 MPSoC does not have login prompt on serial
 	Sometimes, if your SSH is not working, you need a command line on an 
 	MPSoC. The easiest way to do this is plug in the JTAG cable and use 
