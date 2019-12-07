@@ -153,7 +153,7 @@ REGISTERING IT ALL WITH SYSFS
 
 There is only one function to call:
 
-    retval = sysfs_create_file(my_other_kobject, &my_attribute);
+    retval = sysfs_create_file(my_other_kobject, &(my_attribute.attr));
     if (retval) {
         printk(KERN_ERR "Error, could not create file for some reason\n");
         goto error_handling_code;
