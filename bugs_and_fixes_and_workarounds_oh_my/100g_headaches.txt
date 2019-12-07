@@ -1,3 +1,12 @@
+GULF Stream is not ready when you expect it to be:
+    This occurs when GULF Stream was not able to perform an ARP. Anytime this 
+    happens, it is 100% your fault. I have _never_, I repeat, _never_ found a 
+    problem with GULF Stream itself!
+    
+    The first thing to check in this case is your IP addresses, especially to 
+    make sure there are no conflicts. Barring that, also make sure there are no 
+    MAC address conflicts.
+
 100G subsystem expects "dense" LBUS signals:
 	The 100G ethernet subsystem assumes that your LBUS input is continuous. 
 	If you use Clark's AXIS to LBUS converter, this means you have to use a 

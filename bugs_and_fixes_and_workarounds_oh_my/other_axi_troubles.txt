@@ -1,3 +1,9 @@
+Cache coherence when dealing with PS:
+    It turns out that the "C" in some of the slave AXI full interfaces on the 
+    PS stands for "Coherent". For example, "S_AXI_HP0_FPD" does NOT enforce 
+    cache coherency, but "S_AXI_HPC0_FPD" does. This really matter a lot when 
+    you're dealing with the AXI DMA.
+
 AXIS Data FIFOs do not have correct packet mode when two clocks are used:
 	Title says it all. Instead of one FIFO in packet mode with two clocks, 
 	instead use one small two-clock FIFO for the clock crossing, then plug 
