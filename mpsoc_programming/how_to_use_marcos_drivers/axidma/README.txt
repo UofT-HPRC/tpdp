@@ -66,7 +66,9 @@ a lot of trial and error.
 
 First of all, I use the S_AXI_HPC0_FPD slave port at 128 bits wide. I use an 
 AXI interconnect between the AXI DMA and the Zynq. All of the AXI DMA's AXI 
-Masters go through this interconnect so that they can share the PS's AXI Slave.
+Masters go through this interconnect so that they can share the PS's AXI Slave. 
+Furthermore, I wire a constant 0b1011 into ARCACHE and AWCACHE (you'll have to 
+expand the AXI Slaves on the interconnect to do this)
 
 I also enabled unaligned reads. This isn't necessary, but it's a lot more 
 convenient.

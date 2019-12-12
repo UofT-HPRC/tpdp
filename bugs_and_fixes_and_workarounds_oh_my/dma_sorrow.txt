@@ -1,0 +1,25 @@
+AXI DMA reading form wrong address on SG bus
+    The AXI DMA can only do 128-bytes aligned reads on its SG bus. It's this 
+    tiny little paragraph in one of the tables in the product guide... do you 
+    know how many hours I lost to that??
+        
+        "Descriptors must be 16 word aligned, that is, 0x00, 0x40, 0x80 and 
+        others. Any other alignment has undefined results."
+
+Help! My AXI DMA is reading garbage on its SG bus!
+    I do not know why this happens. For reference, here are the settings I was 
+    using when it first started working for me:
+    
+    The AXI DMA's SG and S2MM AXI Masters were wired into an AXI interconnect. 
+    This interconnect's master output was wired into the S_AXI_HPC0_FPD slave 
+    on the Zynq. The S_AXI_HPC0_FPD slave had width 128.
+    
+    I went into the interconnect's advanced options and forced the crossbar 
+    width to be 128. After validating design, I made sure there was no 
+    datawidth converter on the coupler between the crossbar and the PS.
+    
+    One last thing: I don't know if this is necesary, but I found this tip on 
+    the internet: expand the AXI slaves on the interconnect. Wire a constant 
+    1011 into ARCACHE and AWCACHE. This will override the values coming from 
+    the AXI DMA (without modifying any others). It's hard to tell from the 
+    documentation, but this potentially fixes cache coherency issues?

@@ -301,8 +301,14 @@ This is the most complicated function of the module. It has a lot of jobs:
         
         struct pinner_handle usr_handle;
         
+        start = ((unsigned long)cmd->usr_buf | page_mask) - page_mask;
+        first_pg_offset = (unsigned long)cmd->usr_buf - start;
+        
         //Validate inputs from user's command
-        num_pages = (cmd->usr_buf_sz + page_mask) / page_sz; // = ceil(usr_buf_sz / page_sz)
+        //Note that we add first_pg_offset, as though we're pretending it's part 
+        //of the buffer (after all, it's part of the memory we'll end up pinning!)
+        num_pages = (first_pg_offset + cmd->usr_buf_sz + page_mask) / page_sz; // = ceil(usr_buf_sz / page_sz)
+        
         if (num_pages > PINNER_MAX_PAGES) {
             printk(KERN_ALERT "pinner: exceeded maximum pinning size\n");
             ret = -EINVAL;
@@ -314,8 +320,6 @@ This is the most complicated function of the module. It has a lot of jobs:
         }
         
         //Attempt to pin pages 
-        start = ((unsigned long)cmd->usr_buf | page_mask) - page_mask;
-        first_pg_offset = (unsigned long)cmd->usr_buf - start;
         p = kmalloc(num_pages * (sizeof(struct page *)), GFP_KERNEL);
         if (!p) {
             printk(KERN_ALERT "pinner: could not allocate buffer of size [%lu]\n", num_pages * (sizeof(struct page *)));
