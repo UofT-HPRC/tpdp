@@ -1,0 +1,222 @@
+========
+OVERVIEW
+========
+
+I've been having trouble working with Galapagos, so I'm keeping this little 
+file to remind me what's going on behind the scenes.
+
+Here's a quick list of things that happen when you use Galapagos for FPGA 
+projects:
+
+    - (Only once) Set up some environment variables. 
+    
+      This is done using build.sh in the main Galapagos directory, and will 
+      subsequently be replayed automatically from your .bashrc .
+    
+    - Generate Galapgos's custom IPs. The source is inside the middleware/hls 
+      directory inside Galapagos's main directory. You must do this once for 
+      each board you are targeting.
+      
+      This is done using "make hlsmiddleware" in the main Galapagos directory.
+    
+    - Write a "logical file" and a "mapping file". These are explained in the 
+      relevant section of this document. Given these two files, the python 
+      scripts inside the middleware directory will generate a directory inside 
+      the "projects" directory inside the Galapagos main directory. This new 
+      directory will contain a number of TCL scripts which will eventually 
+      generate your bitstream(s). A top-level "createCluster.sh" script is 
+      also generated which sets all the Vivado stuff into motion.
+      
+      This done (after writing your files) by additionally writing a small 
+      Python script that makes a few function calls to Galapagos's Python 
+      library. (Why can't this just be a single command?)
+    
+    - Call the createCluster.sh script from inside your project, and wait for 
+      Vivado to do its thing.
+    
+    - At this point, there will be a bunch of bitstreams; program your FPGAs 
+      and be done with it.
+
+There is also quite a bit of support for running Galapagos kernels on a CPU 
+machine, but I really don't know how to use it. I'll come back to it once I 
+figure it out.
+
+=================
+FILE ORGANIZATION
+=================
+
+The main Galapagos directory contains several subdirectories. I don't really 
+care about most of them; the most immediately important ones are "shells" and 
+"middleware". Shells has one directory for each board Galapagos supports, each 
+containing constraints files and some TCL scripts. Middleware contains all the 
+custom IPs Galapagos uses and all the scripts that generate projects.
+
+When you create a Galapagos project, the scripts will create a "projects" 
+directory inside the main Galapagos directory, and it will put your stuff 
+inside a new directory within "projects".
+
+I really think this is a bad idea. Why not let the user use their own 
+directories?
+
+
+=====================
+ENVIRONMENT VARIABLES
+=====================
+
+Using the scripts requires you to set certain environment variables. There are 
+some scripts to help you set these (see the next sectoin). To the best of my 
+knowledge, here are the environment variables you have to manage:
+
+GALAPAGOS_PATH:
+    This is the (absolute) path to the Galapagos repository.
+    
+GALAPAGOS_VIVADO_PATH:
+    The (absolute) path to the Vivado install folder. On my computer, this is
+    /tools/Xilinx/Vivado/2018.3/
+
+GALAPAGOS_HLS_PATH:
+    The (absolute) path to the Vivado HLS install folder. On my computer, this 
+    is also /tools/Xilinx/Vivado/2018.3/, but note that this is unusual. Most 
+    other computers have this as a separate folder.
+    
+GALAPAGOS_VIVADO_VERSION:
+    On my computer, this is 2018.3. 
+    
+GALAPAGOS_HLS_VERSION:
+    Same thing, 2018.3 in my case.
+    
+GALAPAGOS_PART:
+    This is the full FPGA part number you are using. For example, on the MPSoCs 
+    this is xczu19eg-ffvc1760-2-i
+    
+GALAPAGOS_BOARD:
+    (I don't know what this is yet. I'm pretty sure that this is the official 
+    string that Vivado will understand, as opposed to the friendlier 
+    GALAPAGOS_BOARD_NAME)
+    
+GALAPAGOS_BOARD_NAME:
+    This is a name for one of Galpagos's supported boards. The choices are 
+    "pynq-z2", "zedboard", "sidewinder", "adm-8k5", and "adm-8k5-debug".
+
+GALAPAGOS_PART_FAMILY:
+    (I don't know what this is yet. It ends up being one of "Kintex", "Virtex", 
+    "7series", "Zynq", "Ultrascale_Plus", "Ultrascale", or 
+    "Zynq_Ultrascale_Plus")
+
+PROJECTNAME:
+    The name of the Galapgos project you are working with
+
+LOGICALFILE:
+    The (absolute) path to your logical file (see "Logical and Mapping Files")
+
+MAPPINGFILE:
+    The (absolute) path to your mapping file (see "Logical and Mapping Files")
+
+
+I really disagree with this method of shuffling strings around. It's fine to 
+keep the path to Vivado and Vivado HLS in environment variables, but the user 
+should just be able to leave the part numbers, logical file, and mapping files 
+in their project. 
+
+
+=======================
+GALAPAGOS BUILD SCRIPTS
+=======================
+
+Galapagos comes with a bunch of scripts to help you set the aforementioned 
+environment variables, as well as Makefiles for managing your projects. I 
+haven't been able to use them succesfully so far. 
+
+BUILD.SH
+--------
+
+In the root of the Galapagos directory there is a (very poorly named) build.sh 
+script. It does not "build" anything; all it does is ask you a few questions in 
+order to set the environment variables. Once you've completed the 
+questionnaire, it will save all your answers in a small script in your home 
+folder called ".galapagos", and add a line to your .bashrc file that calls this 
+script. 
+
+By the way, the ".galapagos" also adds some functions to your shell; this is 
+explained immediately below.
+
+
+/HOME/YOUR_USERNAME/.GALAPAGOS
+------------------------------
+
+This is the output of build.sh. It sets the Galapagos environment variables and 
+adds two new functions inside your bash shell: 
+
+galapagos-update-board:
+    Call this with one argument, the name of the board you would now like to 
+    use. The choices are "pynq-z2", "zedboard", "sidewinder", "adm-8k5", and 
+    "adm-8k5-debug".
+
+galapagos-update-versions:
+    Call this with one argument, the version of Vivado you would now like to 
+    use.
+
+Galapagos adds a line to your .bashrc so that this script is automatically 
+called.
+
+
+SETUP.PY
+--------
+
+(Inside the main Galapgos folder) This is one of two scripts called by 
+build.sh. This is the script that asks you all the questions with the nice 
+menu.
+
+Unfortunately, it has a few depencies you have to deal with. First of all, make 
+sure you're using python3 (I've been using pyenv to manage versions, though I 
+can't remember how I set it up in the first place). You also need a whole host 
+of modules. Use
+
+    $ pip install pyfiglet
+    $ pip install regex
+    $ pip install PyInquirer
+
+and whatever you do FOR THE LOVE OF GOD DO *NOT* UPDATE PIP, for only Chaos and 
+Madness await thee at its end.
+
+
+INIT.SH
+-------
+
+(Inside the main Galapgos folder) This is the second of two scripts called by 
+build.sh. Given the answers generated from setup.py, it will generate the 
+Galapagos setup script that gets called from your .bashrc.
+
+    Note: setup.py generates a script called "my_init.sh" which is just a 
+    single call to init.sh. build.sh actually calls my_init.sh; it does not 
+    call init.sh directly.
+
+
+MAKEFILES
+---------
+
+The makefile in the main Galapagos directory has several targets you can use:
+
+all:
+    (Does all the following targets)
+
+example_shell:
+    I think this creates an... example shell? Honestly I have no idea
+
+middleware:
+    God what a mess! To use this target, you must set the PROJECTNAME, 
+    LOGICALFILE, and MAPPINGFILE environment variables. This target is the one 
+    which generates your project scripts, including createCluster.sh
+
+hlsmiddleware:
+    Given the GALAPAGOS_PART (and a few others) generates the custom IPs in 
+    middleware/hls. You must call this every time you change the target FPGA. 
+    (What are you supposed to do if your project uses more than one type of 
+    FPGA? What a nightmare...).
+    
+    Don't forget to call galapagos-update-board first!
+
+clean:
+    Does what it says on the tin.
+
+
