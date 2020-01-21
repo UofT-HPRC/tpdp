@@ -1,0 +1,191 @@
+========
+OVERVIEW
+========
+
+U of T charges a monthly fee for each network port. We get around this in our 
+group by fiddling with our own networking hardware so that two (or more) 
+students can all share a single port.
+
+As it happens, when you ask IT Services to set up the port, they will track the 
+MAC address from that point on. In other words, if you try connecting a 
+different machine to the same port, IT Services will lock it down. 
+
+    You can probably get around this with MAC spoofing, but I've never tried 
+    this before. IT Services will also ask what machine and OS you're using, 
+    and they may have other ways of tracking who's using a network port.
+
+Anyway, since we all run Linux on our computers, it's pretty simple for us to 
+reconfigure the kernel's networking rules so that we can share the port. To do 
+this, you will need:
+
+    1) At least two Network Interface Cards (NICs) on the computer that is 
+       connected to the network port.
+    
+    2) The iptables package
+    
+    3) Sometimes, you also need to ask the kernel to enable packet forwarding.
+
+
+=====
+TL;DR
+=====
+
+See:
+    
+    https://superuser.com/questions/684275/how-to-forward-packets-between-two-interfaces/684296#684296
+    https://wiki.archlinux.org/index.php/Network_configuration
+    https://wiki.archlinux.org/index.php/Iptables
+    https://serverfault.com/questions/877880/how-can-i-add-a-default-gateway-with-the-ip-command-not-the-route-command
+
+
+===================
+HOW DOES THIS WORK?
+===================
+
+When an IP packet arrives on a NIC, the kernel will look at the destination 
+address. If the destination is the local computer, the kernel will send the 
+packet to the appropriate user process(es). Otherwise, it will forward it out 
+according to the kernel's routing tables.
+
+What we'll do is something like this:
+
+     +-----------------+        +----------------------+       +------+
+     | Other computer  |        |      Authorized      |       |      |
+     | wanting to   NIC|--------|NIC1  Computer    NIC2|-------| Port |
+     | use the net     |        |                      |       |      |
+     +-----------------+        +----------------------+       +------+
+
+The Authorized Computer (AC) is the one that IT Services has deemed worth of 
+using the network port. The AC's networking rules will have to be modified to 
+correctly forward traffic from the Other Computer (OC) to the port.
+
+There is one more piece to this puzzle: we need to do a Network Address 
+Translation (NAT). Let's do a concrete example:
+
+AC NIC1:
+    IP Address: 10.10.10.10
+    Subnet mask: 255.255.255.0
+    Gateway: (doesn't matter, I guess you could use 10.10.10.10)
+
+AC NIC2:
+    IP Address: 128.100.241.61
+    Subnet mask: 255.255.255.0
+    Getway: 128.100.241.1
+
+OC NIC:
+    IP Address: 10.10.10.11
+    Subnet mask: 255.255.255.0
+    Gateway: 10.10.10.10 (this matters!)
+
+And by the way, at the other end of that network port is a network switch 
+managed by IT Services. For the sake of this example, call it NS and assume it 
+is set up as:
+    IP Address: 128.100.241.1
+    Subnet mask: 255.255.255.0
+    Gateway: (doesn't matter)
+
+Without the OC, the AC is just sending normal traffic from its own IP Address 
+(128.100.241.61) and the NS is happy to forward the packets out to the public 
+internet. Importantly, the NS will only send packets coming in from the 
+internet to the AC if their destination is 128.100.241.61. 
+
+However, suppose now that the OC sends a packet from destination 10.10.10.11 
+(i.e. the OC's IP address) to 1.2.3.4. The packet arrives at NIC1 on the AC. If 
+the AC just stupidly forwards it out, two bad things will happen:
+
+    1) A packet coming from 10.10.10.11 arrives at the NS. IT Services will 
+       probably flag this as bad behaviour and kill the port.
+    
+    2) Even if the packet does make it onto the public internet, when someone 
+       tries to send something _back_ to 10.10.10.11, it must first go to the 
+       AC. However, only packets going to 128.100.241.61 will ever be sent to 
+       the AC, even if they do get to the NS from the outside.
+    
+So: we need to ask the AC to also modify the forwarded packets. In this 
+example, a packet going from 10.10.10.11 to 1.2.3.4 should do the following:
+
+    1) The OC sends [src: 10.10.10.11, dst: 1.2.3.4] to the AC via 
+       NIC1
+    
+    2) The AC must translate this to [src: 128.100.241.61, dst: 1.2.3.4]. Also, 
+       it must somehow keep track of this connection (more on this later).
+    
+    3) The modified packet is sent out over the AC's NIC2. It arrives at IT 
+       Service's NS as [src: 128.100.241.61, dst: 1.2.3.4] and the NS has no
+       idea that there is an OC in the first place.
+    
+    4) The packet travels around the internet. At some point, 1.2.3.4 will 
+       respond to it, and send a message back to 128.100.241.61.
+    
+    5) Eventually, the response [src: 1.2.3.4, dst: 128.241.61] returns to the 
+       AC via the NS. At this point, the AC must determine whether this packet 
+       should go to a user process on the AC or back to the OC. If we're 
+       careful about how we set up the translation in step 2, the kernel will
+       maintain some information that enables it to make this decision
+    
+    6) If the response was meant for the OC, it is translated one last time to
+       [src: 1.2.3.4, dst: 10.10.10.11] and it is sent over the AC's NIC1.
+    
+    7) The response makes it to the OC. Everybody is happy.
+
+I do not know how the Linux kernel modifies the packet in step 2 so that it can 
+keep track of connections to the OC. My guess is it also fiddles with the UDP 
+or TCP ports. Alternatively, it might edit some other field of the IP header. 
+I'll have to look this up.
+
+So, with that long-winded explanation behind us, let's get to work on 
+configuring the AC!
+
+
+==========================================
+CONFIGURING ADDRESSES, FORWARDING, AND NAT
+==========================================
+
+ADDRESSES
+---------
+
+On the AC, configure NIC1 to have the desired IP addresses. You can do whatever 
+you want here, but to match the example given above, do:
+    
+    $ sudo ip link set NIC1 up                             # Enable the NIC
+    $ sudo ip addr add 10.10.10.10/24 broadcast + dev NIC1 # Set the IP address
+    
+The matching configuration on the OC is
+
+    $ sudo ip link set NIC up
+    $ sudo ip addr add 10.10.10.11/24 broadcast + dev NIC
+    $ sudo ip route replace default via 10.10.10.10 dev NIC # Set the gateway
+    $
+    $ ##If the third command doesn't work, try:
+    $ # sudo ip route add default via 10.10.10.10 dev NIC
+
+Please note: to get the actual device names for the NICs, simply type
+
+    $ ip addr
+
+and the readout will list all the NICs on your machine. 
+
+I assume that AC NIC2 is already set up correctly. At U of T, the switches are 
+all set up to perform DHCP.
+
+
+FORWARDING
+----------
+
+As mentioned before, if an incoming packet's destination is not the same as the 
+local machine's address, the kernel will forward it out to the default gateway. 
+However, this is not always enabled by default. To turn on this feature on the 
+AC, use:
+
+    $ echo 1 | sudo tee /proc/sys/net/ipv4/ip_forward
+
+
+NAT
+---
+
+This is the most complicated part. I found the following command on a stack 
+exchange question, which should be run on the AC:
+
+    $ sudo iptables -t nat -A POSTROUTING -s 10.10.10.0/24 -j MASQUERADE
+
+We'll see if it works!

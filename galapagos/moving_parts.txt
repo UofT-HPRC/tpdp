@@ -17,7 +17,8 @@ projects:
       directory inside Galapagos's main directory. You must do this once for 
       each board you are targeting.
       
-      This is done using "make hlsmiddleware" in the main Galapagos directory.
+      This is done using "make hlsmiddleware" in the main Galapagos directory, 
+      and using galapagos-update-board to change the targeted FPGA.
     
     - Write a "logical file" and a "mapping file". These are explained in the 
       relevant section of this document. Given these two files, the python 
@@ -211,12 +212,142 @@ middleware:
 hlsmiddleware:
     Given the GALAPAGOS_PART (and a few others) generates the custom IPs in 
     middleware/hls. You must call this every time you change the target FPGA. 
-    (What are you supposed to do if your project uses more than one type of 
-    FPGA? What a nightmare...).
     
     Don't forget to call galapagos-update-board first!
 
 clean:
     Does what it says on the tin.
 
+
+
+=========================
+LOGICAL AND MAPPING FILES
+=========================
+
+The main idea behind Galapagos is to automatically generate a "shell" around 
+your design. Specifically, you will nuild your design as several "kernels" 
+(self-contained subcomponents of the whole design) that have a standard 
+interface to one another.
+
+The so-called "Logical File" describes each of your kernels, and the so-called 
+"Mapping File" describes where you want each kernel to be placed (i.e. on a 
+CPU, on an FGPA, etc.).
+
+Once you've written these two files, the so-called "Galapagos Middleware" will 
+read them in and generate the TCL/Bash scripts that will call Vivado/g++ and 
+generate your final bitstreams/executables.
+
+
+LOGICAL FILE
+------------
+
+The following is directly copy-pasted from the Galapagos main README:
+
+++++ BEGIN QUOTE ++++
+
++++ <kernel> kernelName
++++     <num> 1 </num>
++++     <rep> 1 </rep>
++++     <clk> nameOfClockPort </clk>
++++     <id_port> nameOfIDport </id_port>
++++     <aresetn> nameOfResetPort </aresetn>
++++     <s_axis>
++++         <name> nameOfInputStreamInterface </name>
++++     <scope> scope </scope>
++++     </s_axis>
++++     <m_axis>
++++         <name> nameOfOutputStreamInterface </name>
++++     <scope> scope </scope>
++++         <debug/>
++++     </m_axis>
++++     <s_axi>
++++         <name> nameofControlInterface </name>
++++     <scope> scope </scope>
++++     </s_axi>
++++     <m_axi>
++++         <name> nameOfMemoryInterface </name>
++++     <scope> scope </scope>
++++     </m_axi>
++++ </kernel>
++++ 
++++ The <num> tag refers to the unique ID of a kernel.
++++ 
++++ The <rep> refers to the number of times to repeat a kernel. The IDs are of 
++++ repeated kernels are increased sequentially.
++++ 
++++ The <clk> refers to the name of the clock interface, this will be tied to 
++++ the clock in the Hypervisor. 
++++ 
++++ The <aresetn> refers to the name of the reset interface, this will be tied 
++++ to the clock in the Hypervisor (negative edge triggered).
++++ 
++++ The <id_port> refers to the port name in the kernel that will be tied to a 
++++ constant with the value of the unique kernel ID. (optional)
++++ 
++++ The <s_axi> refers to a port from that would be of the s_axi interface. If 
++++ the scope is global then this will connect to the control interface (can be 
++++ either PCIe or ARM, depending on the board). For a local scope, you can 
++++ specify the master which would be another m_axi interface that is of local 
++++ scope.
++++ 
++++ The <m_axi> refers to a port that would be of the m_axi interface. If it's 
++++ of global scope then it will tie to the off-chip memory, else it will 
++++ connect to an s_axi interface that is of local scope.
++++ 
++++ The <s_axis> and <m_axis> is similar to that of the above interfaces, 
++++ except that is is the AXI stream. global scope ties to the networking port, 
++++ local can connect to each other.
+
+++++ END QUOTE ++++
+
+Question: where must your IPs be placed for Galapagos to find them? 
+Answer: I don't know, but I think it's in 
+    
+    $GALAPAGOS_PATH/hlsBuils/$GALAPAGOS_BOARD_NAME/ip
+
+You would have to get pretty tricky if you wanted to write a Galapagos kernel 
+in Verilog.
+
+
+MAPPING FILE
+------------
+
+A Mapping File is an XML file with the following syntax:
+
+    <node>
+        <type> hw </type>
+        <board> sidewinder </board>
+        <comm> eth </comm>
+        <mac_addr>  fa:16:3e:55:ca:02 </mac_addr>
+        <ip_addr> 10.1.2.102 </ip_addr>
+        <kernel> 1 </kernel>
+        <kernel> 3 </kernel>
+        <kernel> 4 </kernel>
+    </node>
+    
+    <node>
+        <type> sw </type>
+        <comm> eth </comm>
+        <mac_addr>  fa:16:3e:55:ca:03 </mac_addr>
+        <ip_addr> 10.1.2.103 </ip_addr>
+        <kernel> 2 </kernel>
+        <kernel> 5 </kernel>
+    </node>
+
+First, a <node> describes one machine in your cluster. 
+
+The <type> says whether it should run on an FPGA (hw) or a CPU (sw). 
+
+The <comm> tag says how to connect nodes to one another; the choices are 
+"none", "raw", "eth" and "tcp". I can only guess what they mean. Associated 
+with the <comm> tag are the <mac_addr> and <ip_addr> tags.
+
+Finally, within <kernel> tags, specify each kernel that should go into one 
+node.
+
+
+GETTING GALAPAGOS TO COMPILE YOUR CLUSTER
+-----------------------------------------
+
+I have never been able to get this far; when I figure it out, I'll report back.
 
