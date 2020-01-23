@@ -1,0 +1,439 @@
+========
+OVERVIEW
+========
+
+You know how you can call system tasks like $fscanf, $display, $readmemh, etc. 
+from inside Verilog? Well it turns out you can write your own system tasks in C 
+that do whatever you want.
+
+To do this, you will use the Verilog Programming Interface (VPI). By writing 
+certain functions with certain arguments, you can compile a shared object that 
+any (compliant) Verilog simulator will know how to load at runtime.
+
+The steps to using VPI are as follows; each one is explained in detail in a 
+later section.
+
+    In your C source code,
+    
+    1) Create a NULL-terminated array of function pointers that will be called 
+       when the Verilog simulator loads your shared object. 
+       
+    2) In one (or more) of your startup routines, call vpi_register_systf for 
+       each new system task you want to add. This function takes a struct as 
+       its argument which includes (among other things) two callbacks:
+       
+        2a) A "compiletf" callback. When the Verilog file is initially parsed 
+            by the Verilog simulator, this callback is triggered to let you 
+            check arguments to your system tasks. This callback is optional and 
+            can be omitted.
+            
+        2b) A "calltf" callback. Whereas the compiletf callback is a static 
+            compiletime check, this callback actually implements the system 
+            function (at runtime) that you are asking for in your Verilog code.
+    
+    And finally,
+    
+    3) Compile the C and Verilog and run the Verilog simulator with the correct
+       arguments.
+
+This document starts with a minimal working example that you should be able to 
+start using right away. The rest of the document explains the steps in detail:
+
+    - Registering your callbacks
+    - The VPI API that your callbacks will use
+    - How to write the callbacks themselves
+
+It's not as hard as it looks, I promise!
+
+
+REFERENCES
+----------
+
+The VPI is defined by IEEE standard 1364-2005 (the IEEE Standard for Verilog) 
+in sections 26 and 27, along with Annex G. This standard can be found at:
+
+    https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=1620780
+
+See also:
+
+    https://iverilog.fandom.com/wiki/Using_VPI
+
+
+=======================
+MINIMAL WORKING EXAMPLE
+=======================
+
+This example has two source files (and a Makefile). my_task.c contains the code 
+that will be called by the Verilog simulation, and hello.v is the Verilog file 
+that calls it.
+
+Please note: the provided Makefile uses Icarus Verilog. You can install it from 
+the iverilog package. You can use XSim or Modelsim instead of Icarus, but 
+you'll have to figure out how to write the Makefile to support them.
+
+my_task.c
+~~~~~~~~~
+
+    #include  <vpi_user.h>
+
+    static int my_compiletf(char*user_data) {
+          return 0;
+    }
+
+    static int my_calltf(char* user_data) {
+          vpi_printf("Hello, World!\n");
+          return 0;
+    }
+
+    void my_task_register() {
+        s_vpi_systf_data tf_data = {
+            .type      = vpiSysTask,
+            .tfname    = "$my_task",
+            .calltf    = my_calltf,
+            .compiletf = my_compiletf,
+            .user_data = 0
+        };
+        
+        vpi_register_systf(&tf_data);
+    }
+
+    void (*vlog_startup_routines[])() = {
+        my_task_register,
+        NULL
+    };
+
+
+hello.v
+~~~~~~~
+
+    module main;
+    initial $my_task();
+    endmodule
+
+
+Makefile
+~~~~~~~~
+
+    all: hello.vvp
+
+    my_task.o: my_task.c
+        gcc -c -fpic -fno-diagnostics-show-caret my_task.c -I/usr/include/iverilog 
+        
+    my_task.vpi: my_task.o
+        gcc -shared -o my_task.vpi my_task.o -lvpi
+
+    hello.vvp:	hello.v
+        iverilog -o hello.vvp hello.v
+
+    run: hello.vvp my_task.vpi
+        vvp -M. -mmy_task hello.vvp
+        
+    clean:
+        rm -rf *.o
+        rm -rf *.vpi
+        rm -rf *.vvp
+
+
+==========================================
+STARTUP ROUTINES AND REGISTERING CALLBACKS
+==========================================
+
+In general, the VPI works by allowing you to register callbacks. You can 
+register callbacks for:
+
+    - Simulation events, such value changes or behavioural statement execution
+    - Simulation time, such as at a certain time in the simulation
+    - Global simulator events, such as startup, end of compile, etc.
+    - User-defined system tasks/functions
+
+For this tutorial, we will only do the custom tasks. Check out general_vpi.txt 
+for more information on the other callbacks.
+
+This section explains how to register callbacks with the VPI. Writing the 
+custom task callbacks themselves is a little involved, so this in described in 
+the next section ("Writing System Task Callbacks").
+
+STARTUP ROUTINES
+----------------
+
+When the Verilog runtime loads your (compiled) C code, it will look for the 
+following variable:
+
+    void (*vlog_startup_routines[])() = {
+        fn1,
+        fn2,
+        ...,
+        NULL
+    };
+
+This variable has type "array of pointers to functions taking no arguments and 
+returning void" and must be named "vlog_startup_routines". The array must be 
+NULL-terminated.
+
+These functions can be whatever you want, but usually they are used to register 
+new system tasks, which we discuss in the next subsection.
+
+(See example at end of this section)
+
+
+REGISTERING A SYSTEM TASK
+-------------------------
+
+To register a callback for custom system tasks you need to call a specific VPI 
+function (described below) from inside one of the functions in your 
+vlog_startup_routines array.
+
+
+vpiHandle vpi_register_systf(s_vpi_systf_data *my_data) {
+          ******************
+    INFO: 
+        Returns a vpiHandle to the callback. vpiHandles are explained in the 
+        "Writing System Task Callbacks" section, below. 
+
+    my_data: 
+        A pointer to an s_vpi_systf_data struct. This struct has the following 
+        members:
+            int32 type: Can be either vpiSysTask or vpiSysFunction. Says 
+            whether this is a task or a function; this tutorial only covers 
+            tasks. See general_vpi.txt for more info.
+               
+            int32 sysfunctype: Denotes return type if this is a custom function 
+            (as opposed to a task). For this tutorial, we won't use this.
+
+            char *tfname: The name of your system task. It must start with '$' 
+            and consist only of [a-zA-Z0-9_S] characters.
+
+            int32 (*calltf)(char*):
+            int32 (*compiletf)(char*): These are the callbacks. See the next 
+            section for information on how to write these.
+
+            int32 (*sizetf)(char*): This callback is only used with functions. 
+            We don't use this.
+
+            char *user_data: This pointer is passed as the argument to your 
+            callback functions. See the next subsection for more details.
+}
+
+
+Example: (mostly taken from the "Minimal Working Example" section)
+
+    //adapted from https://iverilog.fandom.com/wiki/Using_VPI
+    
+    #include <vpi_user.h> //Add -I/usr/include/iverilog and -lvpi to gcc
+    
+    //It is strongly recommended that you use static to avoid name collisions!
+    static int my_compiletf(char*user_data);
+    static int my_calltf(char* user_data);
+    
+    void my_startup_routine() {
+        s_vpi_systf_data tf_data = {
+            .type      = vpiSysTask,
+            .tfname    = "$my_task",
+            .calltf    = my_calltf,
+            .compiletf = my_compiletf,
+            .user_data = 0
+        };
+        
+        vpi_register_systf(&tf_data);
+    }
+
+    void (*vlog_startup_routines[])() = {
+        my_startup_routine,
+        NULL
+    };
+
+
+=======
+VPI API
+=======
+
+Before we can write system task callbacks, we need to understand the API that 
+VPI expects you to use. It's actually quite simple; don't be fooled the length 
+of this section. I've put some examples at the end of this section; I recommend 
+reading back and forth between the examples and the text.
+
+RATIONALE
+---------
+
+In a running Verilog simulation, there are a bunch of objects in memory 
+representing things such as modules, nets, expressions, as well as custom 
+tasks, among many other things. Each of these objects keeps links to other 
+objects in addition to their own values/properties (such as name strings).
+
+All objects are referred to using vpiHandles, which are basically void 
+pointers. As would be expected, a vpiHandle with a value of 0 is invalid 
+(a.k.a. a NULL pointer).
+
+Given a vpiHandle to an object, you can do one of two things: 1) follow one of 
+the object's pointers to another object, or 2) access one of the object's 
+values. The functions for doing these are described in the followin 
+subsections.
+
+
+GRAPH TRAVERSAL FUNCTIONS (vpi_handle, vpi_iterate, and vpi_scan)
+-----------------------------------------------------------------
+                   
+vpiHandle vpi_handle(int32 type, vpiHandle obj) {
+          **********
+    INFO:
+        Given a handle to an object that contains handles to other objects, 
+        fetch the handle that corresponds to the correct type. This only works 
+        if the object has exactly one "child" of that type. 
+        
+        For example, a net object has only one handle to a module object (i.e. 
+        the module that contains the wire). In this example, given h_net, you 
+        could get the module by doing
+        
+        vpiHandle module_h = vpi_handle(vpiModule, net_h);
+        
+        If your object has multiple handles to objects of a specific type, you 
+        need to use vpi_iterate and vpi_scan.
+        
+    type:
+        One of the constants defined in vpi_user.h. This list includes: 
+        vpiConstant, vpiFunction, vpiIntegerVar, vpiIterator, vpiMemory, 
+        vpiMemoryWord, vpiModPath, vpiModule, vpiNamedBegin, vpiNamedEvent, 
+        vpiNamedFork, vpiNet, vpiParameter, vpiPartSelect, vpiPathTerm, 
+        vpiPort, vpiRealVar, vpiReg, vpiSysFuncCall, vpiSysTaskCall, vpiTask, 
+        vpiTimeVar, vpiUdpDefn, vpiUserSystf, vpiNetArray, vpiIndex, 
+        vpiLeftRange, vpiParent, vpiRightRange, vpiScope, vpiSysTfCall, 
+        vpiArgument, vpiInternalScope, vpiModPathIn, vpiModPathOut, 
+        vpiVariables, and vpiExpr. This is not a complete list.
+    
+    obj: 
+        A handle to an object.
+}
+
+
+vpiHandle vpi_iterate(int32 type, vpiHandle obj) {
+          ***********
+    INFO:
+        Does the same thing as vpi_handle, except it returns a handle to a 
+        vpiIterator object. You must use this function if the object in 
+        question has multiple links to objects of the desired type.
+        
+        The vpiIterator object is "dereferenced and incremented" using 
+        vpi_scan. An example is given at the end of this subsection.
+    
+    type:
+    obj:
+        Same as in vpi_handle.
+}
+
+
+vpiHandle vpi_scan(vpiHandle iter) {
+          ********
+    INFO:
+        Call this function on a vpiHandle to a vpiIterator object. It will 
+        "dereference" the iterator and return a handle to the object it points 
+        to. It will also "increment" the iterator so that it points to the next 
+        object in the list (the idea is to call vpi_scan repeatedly on the same 
+        vpiIterator).
+        
+        This function returns 0 (a.k.a. a NULL pointer) when the end of the 
+        list is reached. The iterator object will be freed and is can no 
+        longer be used.
+        
+        If you do not traverse the whole list, you must call
+        
+            vpi_free_object(iter);
+            
+        to free the iterator object. Otherwise, you will be leaking memory.
+
+    iter:
+        A vpiHandle to a vpiIterator (as obtained from the vpi_iterate 
+        function).
+}
+
+
+PROPERTY ACCESS FUNCTIONS (vpi_get and vpi_get_str)
+---------------------------------------------------
+                  
+int32 vpi_get(int32 prop, vpiHandle obj) {
+      *******
+    INFO:
+        
+}
+
+
+char* vpi_get_str(int32 prop, vpiHandle obj) {
+      ***********
+    INFO:
+        
+}
+
+
+RECAP
+-----
+
+If you're looking for a reference of all the different types of objects and 
+their properties, see Section 26.6 in the IEEE 1364-2005 standard. 
+
+
+EXAMPLES
+--------
+
+Example 1: (adapted from IEEE Standard 1364-2005, Section 27.21)
+
+    //The argument is a vpiHandle to a vpiModule object
+    void display_nets(vpiHandle mod) {
+        //Uses the vpi_get_str function to access a string property
+        vpi_printf(
+            "Nets declared in module %s\n",
+            vpi_get_str(vpiFullName, mod)
+        );
+        
+        //Forward-declare handles
+        vpiHandle net;
+        vpiHandle itr;
+        
+        //Get an iterator for all the nets in the modules
+        itr = vpi_iterate(vpiNet, mod);
+        
+        //Use vpi_scan to visit each net
+        while (net = vpi_scan(itr)) {
+            vpi_printf("\t%s", vpi_get_str(vpiName, net));
+            
+            //This tries to get the "vpiVector" property from the vpiNet object. 
+            //If the net is a vector, the vpiVector value is nonzero. Otherwise,
+            //if the net is a single wire, the value is 0. 
+            if (vpi_get(vpiVector, net)) {
+                vpi_printf(" of size %d\n", vpi_get(vpiSize, net));
+            } else {
+                vpi_printf("\n");
+            }
+        }
+    }
+
+Example 2: (adapted from https://en.wikipedia.org/wiki/Verilog_Procedural_Interface)
+
+    //Implements a calltf system task for incrementing a variable
+    static int increment(char *userdata) {
+        vpiHandle systfref, args_iter, argh;
+        struct t_vpi_value argval;
+        int value;
+
+        // Obtain a handle to the argument list
+        systfref = vpi_handle(vpiSysTfCall, NULL);
+        args_iter = vpi_iterate(vpiArgument, systfref);
+
+        // Grab the value of the first argument
+        argh = vpi_scan(args_iter);
+        argval.format = vpiIntVal;
+        vpi_get_value(argh, &argval);
+        value = argval.value.integer;
+        vpi_printf("VPI routine received %d\n", value);
+
+        // Increment the value and put it back as first argument
+        argval.value.integer = value + 1;
+        vpi_put_value(argh, &argval, NULL, vpiNoDelay);
+
+        // Cleanup and return
+        vpi_free_object(args_iter);
+        return 0;
+    }
+
+
+=============================
+WRITING SYSTEM TASK CALLBACKS
+=============================
