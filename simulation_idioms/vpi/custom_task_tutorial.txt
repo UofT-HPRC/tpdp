@@ -215,10 +215,10 @@ vpiHandle vpi_register_systf(s_vpi_systf_data *my_data) {
 }
 
 
-Example: (mostly taken from the "Minimal Working Example" section)
+EXAMPLE
+-------
 
     //adapted from https://iverilog.fandom.com/wiki/Using_VPI
-    
     #include <vpi_user.h> //Add -I/usr/include/iverilog and -lvpi to gcc
     
     //It is strongly recommended that you use static to avoid name collisions!
@@ -264,10 +264,10 @@ All objects are referred to using vpiHandles, which are basically void
 pointers. As would be expected, a vpiHandle with a value of 0 is invalid 
 (a.k.a. a NULL pointer).
 
-Given a vpiHandle to an object, you can do one of two things: 1) follow one of 
-the object's pointers to another object, or 2) access one of the object's 
-values. The functions for doing these are described in the followin 
-subsections.
+Given a vpiHandle to an object, you can do one of three things: 1) follow one 
+of the object's pointers to another object; 2) access one of the object's 
+compile-time properties; or 3) access run-time simulation values. The functions 
+for doing these are described in the following subsections.
 
 
 GRAPH TRAVERSAL FUNCTIONS (vpi_handle, vpi_iterate, and vpi_scan)
@@ -299,6 +299,8 @@ vpiHandle vpi_handle(int32 type, vpiHandle obj) {
         vpiLeftRange, vpiParent, vpiRightRange, vpiScope, vpiSysTfCall, 
         vpiArgument, vpiInternalScope, vpiModPathIn, vpiModPathOut, 
         vpiVariables, and vpiExpr. This is not a complete list.
+        
+        For more information, see section 26.6 of the IEEE Standard 1364-2005.
     
     obj: 
         A handle to an object.
@@ -352,19 +354,86 @@ PROPERTY ACCESS FUNCTIONS (vpi_get and vpi_get_str)
 int32 vpi_get(int32 prop, vpiHandle obj) {
       *******
     INFO:
+        Gets an integer (or a boolean represented as an int) from an object. 
+        These are compile-time parameters of the object.
+    
+    prop:
+        One of the constants defined in vpi_user.h. This list includes: 
+        vpiType, vpiName, vpiFullName, vpiSize, vpiFile, vpiLineNo, 
+        vpiTopModule, vpiCellInstance, vpiDefName, vpiTimeUnit, 
+        vpiTimePrecision, vpiDefFile, vpiDefLineNo, vpiScalar, vpiVector.
+        This list is NOT complete.
         
+        For more information, see section 26.6 of the IEEE Standard 1364-2005.
+    
+    obj:
+        A handle to an object
 }
 
 
 char* vpi_get_str(int32 prop, vpiHandle obj) {
       ***********
     INFO:
-        
+        Same as vpi_get, except used to get string parameters from an object.
+    
+    prop:
+    obj:
+        Same as vpi_get.
 }
+
+
+SIMULATION VALUE ACCESS FUNCTIONS (vpi_get_value and vpi_put_value)
+-------------------------------------------------------------------
+
+Both these functions use the following struct:
+
+    typedef struct t_vpi_value {
+        PLI_INT32 format; /* vpi[[Bin,Oct,Dec,Hex]Str,Scalar,Int,Real,String,
+                                 Vector,Strength,Suppress,Time,ObjType]Val */
+        union {
+            PLI_BYTE8 *str;                     /* string value */
+            PLI_INT32 scalar;                   /* vpi[0,1,X,Z] */
+            PLI_INT32 integer;                  /* integer value */
+            double real;                        /* real value */
+            struct t_vpi_time *time;            /* time value */
+            struct t_vpi_vecval *vector;        /* vector value */
+            struct t_vpi_strengthval *strength; /* strength value */
+            PLI_BYTE8 *misc;                    /* ...other */
+        } value;
+    } s_vpi_value, *p_vpi_value;
+
 
 
 RECAP
 -----
+
+Given an object with vpiHandle old_handle, if you want to access an object that 
+it points to, use
+
+    new_handle = vpi_handle(type, old_handle)
+
+If the object has more than one pointer to an object of the desired type, use
+
+    iterator_handle = vpi_iterate(type, old_handle);
+    while (new_handle = vpi_scan(iterator_handle)) {
+    
+        //...
+        
+        if (quit before reading the whole list) {
+            vpi_free_object(iterator_handle);
+            break;
+        }
+    }
+
+To access a compile-time parameter of an object, use
+
+    int my_val = vpi_get(vpiInteger, old_handle);
+    char *my_str = vpi_get(vpiName);
+    //etc.
+
+To access a run-time simulation value, use
+
+    ???
 
 If you're looking for a reference of all the different types of objects and 
 their properties, see Section 26.6 in the IEEE 1364-2005 standard. 
