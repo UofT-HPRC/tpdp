@@ -270,8 +270,8 @@ compile-time properties; or 3) access run-time simulation values. The functions
 for doing these are described in the following subsections.
 
 
-GRAPH TRAVERSAL FUNCTIONS (vpi_handle, vpi_iterate, and vpi_scan)
------------------------------------------------------------------
+1) GRAPH TRAVERSAL FUNCTIONS (vpi_handle, vpi_iterate, and vpi_scan)
+--------------------------------------------------------------------
                    
 vpiHandle vpi_handle(int32 type, vpiHandle obj) {
           **********
@@ -348,8 +348,8 @@ vpiHandle vpi_scan(vpiHandle iter) {
 }
 
 
-PROPERTY ACCESS FUNCTIONS (vpi_get and vpi_get_str)
----------------------------------------------------
+2) PROPERTY ACCESS FUNCTIONS (vpi_get and vpi_get_str)
+------------------------------------------------------
                   
 int32 vpi_get(int32 prop, vpiHandle obj) {
       *******
@@ -382,8 +382,8 @@ char* vpi_get_str(int32 prop, vpiHandle obj) {
 }
 
 
-SIMULATION VALUE ACCESS FUNCTIONS (vpi_get_value and vpi_put_value)
--------------------------------------------------------------------
+3) SIMULATION VALUE ACCESS FUNCTIONS (vpi_get_value and vpi_put_value)
+----------------------------------------------------------------------
 
 Both these functions use the following struct:
 
@@ -402,10 +402,57 @@ Both these functions use the following struct:
         } value;
     } s_vpi_value, *p_vpi_value;
 
+This code is directly lifted from the standard. In the comments, when they say 
+"vpi[0,1,X,Z]", what they mean is that the choices are vpi0, vpi1, vpiX, and 
+vpiZ (and similarly for the format member of the struct).
 
+The only other tricky thing is how vector values are stored. mumblemumble.
 
-RECAP
------
+void vpi_get_value(vpiHanle obj, s_vpi_value *val) {
+     *************
+    INFO:
+        Before calling this function, set val.format to be one of the allowed 
+        value type constants. You can use the special vpiObjTypeVal constant to 
+        let the VPI core automatically replace val.format with the right one.
+    
+        When called, this function will look for a run-time simulation value in 
+        obj. It may perform a conversion depending on the value of val.format.
+    
+    obj:
+        A handle to an object.
+    
+    val:
+        A pointer to a struct of type s_vpi_value. You need to set the format 
+        member before calling this function; after the function succeeds, it 
+        will have filled the rest of the struct.
+}
+
+void vpi_put_value(vpiHandle obj, s_vpi_value *val, s_vpi_time *tm, int32 flags) {
+     *************
+    INFO:
+        The counterpart to vpi_get_value. Given an object and a value, sets the 
+        object's associated simulation value. 
+        
+        Setting values in a simulation is complicated, since the rest of the 
+        simulation has to be made aware of the change. Also, you can have force 
+        an release statements... 
+        
+        Anyway, I don't really understand all the different things this 
+        function lets you do. The only thing I care about is setting the value 
+        right now, which is done using tm = NULL and flags = vpiNoDelay.
+    
+    obj:
+    val:
+        Same as in vpi_get_value, except the value struct has to be filled.
+    
+    tm:
+    flags:
+        I don't really know. Just use tm = NULL and flags = vpiNoDelay until 
+        you have a reason to do otherwise.
+}   
+
+SUMMARY
+-------
 
 Given an object with vpiHandle old_handle, if you want to access an object that 
 it points to, use
