@@ -194,7 +194,36 @@ To access a compile-time parameter of an object, use
 
 To access a run-time simulation value, use
 
-    ???
+    s_vpi_value my_val = {
+        .format = vpiObjTypeVal
+    };
+    
+    vpi_get_value(old_handle, &my_val);
+    
+    //Suppose the value was a vector:
+    if (my_val.format == vpiVectorVal) {
+        //Get the number of bits in the vector
+        int size = vpi_get(vpiSize, old_handle); 
+        
+        //Number of elements in the array of int32s that represent the vector
+        int arrlen = (size + 31)/32; 
+        
+        //The vector is an array of arr_len s_vpi_vecval structs 
+        s_vpi_vecval *bitarr = my_val.value.vector;
+        
+        //Do something with bitarr...
+    }
+    
+    //This specifically asks for an int
+    s_vpi_value my_int_val = {
+        .format = vpiIntVal
+    };
+    
+    //This will cause the vector returned by the last call of vpi_get_value
+    //to be deallocated!
+    vpi_get_value(some_other_handle, &my_int_val);
+    
+    int x = my_int_val.value.integer;
 
 Again, if you're looking for a reference of all the different types of objects 
 and their properties, see Section 26.6 in the IEEE 1364-2005 standard. 
@@ -203,3 +232,50 @@ and their properties, see Section 26.6 in the IEEE 1364-2005 standard.
 =============================
 WRITING SYSTEM TASK CALLBACKS
 =============================
+
+The function signature for your callbacks is
+
+    void my_callback(char *user_data)
+
+The argument that gets passed in is whatever you put into the user_data field 
+of the s_vpi_systf_data struct that was registered with the VPI core.
+
+To get access to the arguments, use the following code. Again, the full details 
+are in vpi_core_api.txt.
+
+    void my_callback(char *user_data) {
+        vpiHandle systf_call_object = vpi_handle(vpiSysTfCall, NULL);
+        
+        vpiHandle arg_list_iter = vpi_iterate(vpiArgument, systf_call_object);
+        
+        vpiHandle arg;
+        
+        while (arg = vpi_scan(arg_list_iter)) {
+            //Do something with arg. For example,
+            s_vpi_value arg_val = {
+                .format = vpiObjTypeVal
+            };
+            
+            vpi_get_value(arg, &arg_val);
+            
+            //etc.
+            
+            if (/*quitting loop early*/) {
+                vpi_free_object(arg_list_iter);
+            }
+        }
+        
+        //At this point, both arg_list_iter and arg are no longer valid
+    }
+
+If you want to change a value in the simulation, you can use
+
+        s_vpi_value new_arg_val;
+        new_arg_val.format = vpiIntVal;
+        new_arg_val.value.integer = 12;
+        
+        vpi_put_value(arg, &new_arg_val, NULL, vpiNoDelay);
+    
+This sets the value "right now" in the simulation. There are other flags you 
+can use in the last argument to vpi_put_value, but I don't know how to use 
+them.

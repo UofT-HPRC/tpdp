@@ -310,6 +310,10 @@ void vpi_get_value(vpiHanle obj, s_vpi_value *val) {
     
         When called, this function will look for a run-time simulation value in 
         obj. It may perform a conversion depending on the value of val.format.
+        
+        The returned value is allocated by vpi_get_value, and will be freed the
+        next time vpi_get_value is called. If you need this value, you need to
+        copy it.
     
     obj:
         A handle to an object.
