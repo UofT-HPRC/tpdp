@@ -56,8 +56,7 @@ When you create a Galapagos project, the scripts will create a "projects"
 directory inside the main Galapagos directory, and it will put your stuff 
 inside a new directory within "projects".
 
-I really think this is a bad idea. Why not let the user use their own 
-directories?
+Why not let the user use their own directories?
 
 
 =====================
@@ -114,12 +113,6 @@ MAPPINGFILE:
     The (absolute) path to your mapping file (see "Logical and Mapping Files")
 
 
-I really disagree with this method of shuffling strings around. It's fine to 
-keep the path to Vivado and Vivado HLS in environment variables, but the user 
-should just be able to leave the part numbers, logical file, and mapping files 
-in their project. 
-
-
 =======================
 GALAPAGOS BUILD SCRIPTS
 =======================
@@ -131,12 +124,11 @@ haven't been able to use them succesfully so far.
 BUILD.SH
 --------
 
-In the root of the Galapagos directory there is a (very poorly named) build.sh 
-script. It does not "build" anything; all it does is ask you a few questions in 
-order to set the environment variables. Once you've completed the 
-questionnaire, it will save all your answers in a small script in your home 
-folder called ".galapagos", and add a line to your .bashrc file that calls this 
-script. 
+In the root of the Galapagos directory there is a (misnamed) build.sh script. 
+It does not "build" anything; all it does is ask you a few questions in order 
+to set the environment variables. Once you've completed the questionnaire, it 
+will save all your answers in a small script in your home folder called 
+".galapagos", and add a line to your .bashrc file that calls this script. 
 
 By the way, the ".galapagos" also adds some functions to your shell; this is 
 explained immediately below.
@@ -211,7 +203,7 @@ middleware:
 
 hlsmiddleware:
     Given the GALAPAGOS_PART (and a few others) generates the custom IPs in 
-    middleware/hls. You must call this every time you change the target FPGA. 
+    middleware/hls. You must call this for each target FPGA. 
     
     Don't forget to call galapagos-update-board first!
 
