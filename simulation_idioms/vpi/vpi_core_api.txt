@@ -1,0 +1,503 @@
+========
+OVERVIEW
+========
+
+This file should help you get up to speed on the details of the core VPI API. 
+In my opinion, this API is quite well designed, and I think you'll find it 
+sensible.
+
+The steps to using the API are as follows:
+    
+    1) Create an array of function pointers that will be called when the 
+       Verilog simulator loads your shared object. 
+       
+    2) Register callbacks with the API. You can register callbacks for:
+         - Simulation events, such value changes or statement execution
+         - Simulation time, such as at a certain time in the simulation
+         - Global simulator events, such as startup, end of compile, etc.
+         - User-defined system tasks/functions
+
+    3) Within your callbacks, there is an API for accessing the data within the 
+       simulation. This includes:
+         - Functions for traversing the hierarchy of data structures
+         - Functions for accessing compile-time parameters
+         - Functions for accessing runtime simulation data
+
+
+This document only attempts to explain the aspects of the API that are relevant 
+to creating custom system tasks, starting with more details about the 
+simulation data structures.
+
+=========
+RATIONALE
+=========
+
+In a running Verilog simulation, there are a bunch of objects in memory 
+representing things such as modules, nets, expressions, as well as custom 
+tasks, among many other things. Each of these objects keeps links to other 
+objects in addition to their own values/properties (such as name strings).
+
+All objects are referred to using vpiHandles, which are basically void 
+pointers. As would be expected, a vpiHandle with a value of 0 is invalid 
+(a.k.a. a NULL pointer).
+
+Given a vpiHandle to an object, you can do one of three things: 1) follow one 
+of the object's pointers to another object; 2) access one of the object's 
+compile-time properties; or 3) access run-time simulation values. The functions 
+for doing these are described in the following sections.
+
+There are several examples at the end of the document. I recommend reading back 
+and forth between the examples and the text.
+
+
+==========================================
+STARTUP ROUTINES AND REGISTERING CALLBACKS
+==========================================
+
+This section explains how to register callbacks with the VPI. This is done from 
+inside a "startup routine" that the Verilog simulator will call when the code 
+is first loaded.
+
+
+STARTUP ROUTINES
+----------------
+
+When the Verilog runtime loads your (compiled) C code, it will look for the 
+following variable:
+
+    void (*vlog_startup_routines[])() = {
+        fn1,
+        fn2,
+        ...,
+        NULL
+    };
+
+This variable has type "array of pointers to functions taking no arguments and 
+returning void" and must be named "vlog_startup_routines". The array must be 
+NULL-terminated.
+
+These functions can be whatever you want, but usually they are used to register 
+new system tasks, which we discuss in the next subsection. See example at end 
+of this section.
+
+
+REGISTERING A SYSTEM TASK
+-------------------------
+
+To register a callback for custom system tasks you need to call a specific VPI 
+function (described below) from inside one of the functions in your 
+vlog_startup_routines array.
+
+
+vpiHandle vpi_register_systf(s_vpi_systf_data *my_data) {
+          ******************
+    INFO: 
+        Returns a vpiHandle to the callback. vpiHandles are explained in the 
+        "Writing System Task Callbacks" section, below. 
+
+    my_data: 
+        A pointer to an s_vpi_systf_data struct. This struct has the following 
+        members:
+            int32 type: Can be either vpiSysTask or vpiSysFunction. Says 
+            whether this is a task or a function; this tutorial only covers 
+            tasks. See general_vpi.txt for more info.
+               
+            int32 sysfunctype: Denotes return type if this is a custom function 
+            (as opposed to a task). For this tutorial, we won't use this.
+
+            char *tfname: The name of your system task. It must start with '$' 
+            and consist only of [a-zA-Z0-9_S] characters.
+
+            int32 (*calltf)(char*):
+            int32 (*compiletf)(char*): These are the callbacks. See the next 
+            section for information on how to write these.
+
+            int32 (*sizetf)(char*): This callback is only used with functions. 
+            We don't use this.
+
+            char *user_data: This pointer is passed as the argument to your 
+            callback functions. See the next subsection for more details.
+}
+
+
+EXAMPLE
+-------
+
+    //adapted from https://iverilog.fandom.com/wiki/Using_VPI
+    #include <vpi_user.h> //Add -I/usr/include/iverilog and -lvpi to gcc
+    
+    //It is strongly recommended that you use static to avoid name collisions!
+    static int my_compiletf(char*user_data);
+    static int my_calltf(char* user_data);
+    
+    void my_startup_routine() {
+        s_vpi_systf_data tf_data = {
+            .type      = vpiSysTask,
+            .tfname    = "$my_task",
+            .calltf    = my_calltf,
+            .compiletf = my_compiletf,
+            .user_data = 0
+        };
+        
+        vpi_register_systf(&tf_data);
+    }
+
+    void (*vlog_startup_routines[])() = {
+        my_startup_routine,
+        NULL
+    };
+
+
+=================================================================
+GRAPH TRAVERSAL FUNCTIONS (vpi_handle, vpi_iterate, and vpi_scan)
+=================================================================
+                   
+vpiHandle vpi_handle(int32 type, vpiHandle obj) {
+          **********
+    INFO:
+        Given a handle to an object that contains handles to other objects, 
+        fetch the handle that corresponds to the correct type. This only works 
+        if the object has exactly one "child" of that type. 
+        
+        For example, a net object has only one handle to a module object (i.e. 
+        the module that contains the wire). In this example, given h_net, you 
+        could get the module by doing
+        
+        vpiHandle module_h = vpi_handle(vpiModule, net_h);
+        
+        If your object has multiple handles to objects of a specific type, you 
+        need to use vpi_iterate and vpi_scan.
+        
+    type:
+        One of the constants defined in vpi_user.h. This list includes: 
+        vpiConstant, vpiFunction, vpiIntegerVar, vpiIterator, vpiMemory, 
+        vpiMemoryWord, vpiModPath, vpiModule, vpiNamedBegin, vpiNamedEvent, 
+        vpiNamedFork, vpiNet, vpiParameter, vpiPartSelect, vpiPathTerm, 
+        vpiPort, vpiRealVar, vpiReg, vpiSysFuncCall, vpiSysTaskCall, vpiTask, 
+        vpiTimeVar, vpiUdpDefn, vpiUserSystf, vpiNetArray, vpiIndex, 
+        vpiLeftRange, vpiParent, vpiRightRange, vpiScope, vpiSysTfCall, 
+        vpiArgument, vpiInternalScope, vpiModPathIn, vpiModPathOut, 
+        vpiVariables, and vpiExpr. This is not a complete list.
+        
+        For more information, see section 26.6 of the IEEE Standard 1364-2005.
+    
+    obj: 
+        A handle to an object.
+}
+
+
+vpiHandle vpi_iterate(int32 type, vpiHandle obj) {
+          ***********
+    INFO:
+        Does the same thing as vpi_handle, except it returns a handle to a 
+        vpiIterator object. You must use this function if the object in 
+        question has multiple links to objects of the desired type.
+        
+        The vpiIterator object is "dereferenced and incremented" using 
+        vpi_scan. An example is given at the end of this subsection.
+    
+    type:
+    obj:
+        Same as in vpi_handle.
+}
+
+
+vpiHandle vpi_scan(vpiHandle iter) {
+          ********
+    INFO:
+        Call this function on a vpiHandle to a vpiIterator object. It will 
+        "dereference" the iterator and return a handle to the object it points 
+        to. It will also "increment" the iterator so that it points to the next 
+        object in the list (the idea is to call vpi_scan repeatedly on the same 
+        vpiIterator).
+        
+        This function returns 0 (a.k.a. a NULL pointer) when the end of the 
+        list is reached. The iterator object will be freed and is can no 
+        longer be used.
+        
+        If you do not traverse the whole list, you must call
+        
+            vpi_free_object(iter);
+            
+        to free the iterator object. Otherwise, you will be leaking memory.
+
+    iter:
+        A vpiHandle to a vpiIterator (as obtained from the vpi_iterate 
+        function).
+}
+
+
+===================================================
+PROPERTY ACCESS FUNCTIONS (vpi_get and vpi_get_str)
+===================================================
+                  
+int32 vpi_get(int32 prop, vpiHandle obj) {
+      *******
+    INFO:
+        Gets an integer (or a boolean represented as an int) from an object. 
+        These are compile-time parameters of the object.
+    
+    prop:
+        One of the constants defined in vpi_user.h. This list includes: 
+        vpiType, vpiName, vpiFullName, vpiSize, vpiFile, vpiLineNo, 
+        vpiTopModule, vpiCellInstance, vpiDefName, vpiTimeUnit, 
+        vpiTimePrecision, vpiDefFile, vpiDefLineNo, vpiScalar, vpiVector.
+        This list is NOT complete.
+        
+        For more information, see section 26.6 of the IEEE Standard 1364-2005.
+    
+    obj:
+        A handle to an object
+}
+
+
+char* vpi_get_str(int32 prop, vpiHandle obj) {
+      ***********
+    INFO:
+        Same as vpi_get, except used to get string parameters from an object.
+    
+    prop:
+    obj:
+        Same as vpi_get.
+}
+
+
+===================================================================
+SIMULATION VALUE ACCESS FUNCTIONS (vpi_get_value and vpi_put_value)
+===================================================================
+
+Both these functions use the following struct:
+
+    typedef struct t_vpi_value {
+        PLI_INT32 format; /* vpi[[Bin,Oct,Dec,Hex]Str,Scalar,Int,Real,String,
+                                 Vector,Strength,Suppress,Time,ObjType]Val */
+        union {
+            PLI_BYTE8 *str;                     /* string value */
+            PLI_INT32 scalar;                   /* vpi[0,1,X,Z] */
+            PLI_INT32 integer;                  /* integer value */
+            double real;                        /* real value */
+            struct t_vpi_time *time;            /* time value */
+            struct t_vpi_vecval *vector;        /* vector value */
+            struct t_vpi_strengthval *strength; /* strength value */
+            PLI_BYTE8 *misc;                    /* ...other */
+        } value;
+    } s_vpi_value, *p_vpi_value;
+
+This code is directly lifted from the standard. In the comments, when they say 
+"vpi[0,1,X,Z]", what they mean is that the choices are vpi0, vpi1, vpiX, and 
+vpiZ (and similarly for the format member of the struct).
+
+If the type is vpiVectorVal, then the value is stored as an array of 
+s_vpi_vecval structs. Here is the definition:
+
+    typedef struct t_vpi_vecval {
+        /* following fields are repeated enough times to contain vector */
+        PLI_INT32 aval, bval; /* bit encoding: ab: 00=0, 10=1, 11=X, 01=Z */
+    } s_vpi_vecval, *p_vpi_vecval;
+
+So, if my_value a filled s_vpi_value struct with format = vpiVectorVal, then 
+my_value.value.vector points to the first s_vpi_vecval in the array. Each bit 
+in the vector is represented by a bit in aval and a bit in bval. However, for 
+some annoying reason, you have to do an extra step to get the vector's size; 
+please see Example 3 at the end of this section.
+
+void vpi_get_value(vpiHanle obj, s_vpi_value *val) {
+     *************
+    INFO:
+        Before calling this function, set val.format to be one of the allowed 
+        value type constants. You can use the special vpiObjTypeVal constant to 
+        let the VPI core automatically replace val.format with the right one.
+    
+        When called, this function will look for a run-time simulation value in 
+        obj. It may perform a conversion depending on the value of val.format.
+    
+    obj:
+        A handle to an object.
+    
+    val:
+        A pointer to a struct of type s_vpi_value. You need to set the format 
+        member before calling this function; after the function succeeds, it 
+        will have filled the rest of the struct.
+}
+
+void vpi_put_value(vpiHandle obj, s_vpi_value *val, s_vpi_time *tm, int32 flags) {
+     *************
+    INFO:
+        The counterpart to vpi_get_value. Given an object and a value, sets the 
+        object's associated simulation value. 
+        
+        Setting values in a simulation is complicated, since the rest of the 
+        simulation has to be made aware of the change. Also, you can have force 
+        an release statements... 
+        
+        Anyway, I don't really understand all the different things this 
+        function lets you do. The only thing I care about is setting the value 
+        right now, which is done using tm = NULL and flags = vpiNoDelay.
+    
+    obj:
+    val:
+        Same as in vpi_get_value, except the value struct has to be filled.
+    
+    tm:
+    flags:
+        I don't really know. Just use tm = NULL and flags = vpiNoDelay until 
+        you have a reason to do otherwise.
+} 
+
+
+========
+EXAMPLES
+========
+
+LISTING ALL NETS IN A vpiModule 
+-------------------------------
+
+(adapted from IEEE Standard 1364-2005, Section 27.21)
+
+    //The argument is a vpiHandle to a vpiModule object
+    void display_nets(vpiHandle mod) {
+        //Uses the vpi_get_str function to access a string property
+        vpi_printf(
+            "Nets declared in module %s\n",
+            vpi_get_str(vpiFullName, mod)
+        );
+        
+        //Forward-declare handles
+        vpiHandle net;
+        vpiHandle itr;
+        
+        //Get an iterator for all the nets in the modules
+        itr = vpi_iterate(vpiNet, mod);
+        
+        //Use vpi_scan to visit each net
+        while (net = vpi_scan(itr)) {
+            vpi_printf("\t%s", vpi_get_str(vpiName, net));
+            
+            //This tries to get the "vpiVector" property from the vpiNet object. 
+            //If the net is a vector, the vpiVector value is nonzero. Otherwise,
+            //if the net is a single wire, the value is 0. 
+            if (vpi_get(vpiVector, net)) {
+                vpi_printf(" of size %d\n", vpi_get(vpiSize, net));
+            } else {
+                vpi_printf("\n");
+            }
+        }
+    }
+
+CALLTF CALLBACK FOR INCREMENTING A VARIABLE
+-------------------------------------------
+
+(adapted from https://en.wikipedia.org/wiki/Verilog_Procedural_Interface)
+
+    static int increment(char *userdata) {
+        vpiHandle systfref, args_iter, argh;
+        struct t_vpi_value argval;
+        int value;
+
+        // Obtain a handle to the argument list
+        systfref = vpi_handle(vpiSysTfCall, NULL);
+        args_iter = vpi_iterate(vpiArgument, systfref);
+
+        // Grab the value of the first argument
+        argh = vpi_scan(args_iter);
+        argval.format = vpiIntVal;
+        vpi_get_value(argh, &argval);
+        value = argval.value.integer;
+        vpi_printf("VPI routine received %d\n", value);
+
+        // Increment the value and put it back as first argument
+        argval.value.integer = value + 1;
+        vpi_put_value(argh, &argval, NULL, vpiNoDelay);
+
+        // Cleanup and return
+        vpi_free_object(args_iter);
+        return 0;
+    }
+
+
+CALLTF CALLBACK THAT PRINTS ITS RUNTIME ARGUMENTS
+-------------------------------------------------
+
+    static int my_calltf(char *user_data) {
+        //Forward-declare some handles
+        vpiHandle systf_call;
+        vpiHandle arg_it;
+        
+        //The vpi_handle function has special behaviour if NULL is used as the
+        //object handle. In this case, it retrieves a handle to the struct that
+        //maintains the state of the current system task call
+        systf_call = vpi_handle(vpiSysTfCall, NULL);
+        
+        //We will iterate through the arguments list of the task call
+        arg_it = vpi_iterate(vpiArgument, systf_call);
+        
+        //Stores the current argument in the following loop.
+        vpiHandle arg;
+        
+        while (arg = vpi_scan(arg_it)) {
+            vpi_printf("Got an arg!\n");
+            
+            //Using format = bpiObjTypeVal will get the VPI Core to select the
+            //format automatically
+            s_vpi_value myval = {
+                .format = vpiObjTypeVal
+            };
+            
+            vpi_get_value(arg, &myval);
+            
+            switch(myval.format) {
+            case vpiBinStrVal:
+            case vpiOctStrVal:
+            case vpiDecStrVal:
+            case vpiHexStrVal:
+                printf("\tType is some kind of string [%s]\n", myval.value.str);
+                break;
+            
+            case vpiScalarVal:
+                printf("\tType is scalar\n");
+                break;
+            
+            case vpiIntVal:
+                printf("\tType is int [%d]\n", myval.value.integer);
+                break;
+            
+            case vpiRealVal:
+                printf("\tType is real [%lf]\n", myval.value.real);
+                break;
+            
+            case vpiStringVal:
+                printf("\tType is string [%s]\n", myval.value.str);
+                break;
+            
+            //With vectors, you have to run vpi_get(vpiSize, h) on the handle
+            //that you got the vector from.
+            case vpiVectorVal:
+                printf("\tType is vector \n");
+                printf("\tThe size is [%d]\n", vpi_get(vpiSize, arg));
+                break;
+            
+            case 0:
+                printf("\tError\n");
+            
+            default:
+                printf("\tSomething else...\n");
+            }
+        }
+        
+        vpi_printf("Hello, World!\n");
+        return 0;
+    }
+
+
+==========
+REFERENCES
+==========
+
+The VPI is defined by IEEE standard 1364-2005 (the IEEE Standard for Verilog) 
+in sections 26 and 27, along with Annex G. This standard can be found at:
+
+    https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=1620780
+
+See also:
+
+    https://iverilog.fandom.com/wiki/Using_VPI
