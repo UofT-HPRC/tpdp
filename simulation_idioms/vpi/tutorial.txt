@@ -121,7 +121,7 @@ Makefile
     all: hello.vvp my_task.vpi
 
     my_task.o: my_task.c
-        gcc -c -fpic -fno-diagnostics-show-caret my_task.c -I/usr/include/iverilog 
+        gcc -c -fpic my_task.c -I/usr/include/iverilog 
         
     my_task.vpi: my_task.o
         gcc -shared -o my_task.vpi my_task.o -lvpi
@@ -279,3 +279,26 @@ If you want to change a value in the simulation, you can use
 This sets the value "right now" in the simulation. There are other flags you 
 can use in the last argument to vpi_put_value, but I don't know how to use 
 them.
+
+
+======================
+COMPILING VPI PROGRAMS
+======================
+
+This section is specific to Icarus Verilog. 
+
+Basically, first we compile our C code into a shared library. To do this, we 
+need to use -fpic for Position Independent Code, and we need to use the -I flag 
+to tell the C compiler where vpi_user.h is located.
+
+    $ gcc -c -fpic my_code.c -I/usr/include/iverilog
+    $ gcc -o my_code.vpi -shared my_code.o -lvpi
+
+Now, we ask Icarus Verilog to compile and run the Verilog with our VPI program. 
+The -M and -m switches tell vvp (the program that runs compiled Verilog 
+programs) where to find the shared library code and what it's called.
+
+    $ iverilog -o my_module.vvp my_module.v
+    $ vvp -M. -mmy_code my_module.vvp
+
+That's it!
