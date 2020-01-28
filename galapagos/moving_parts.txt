@@ -46,17 +46,28 @@ figure it out.
 FILE ORGANIZATION
 =================
 
-The main Galapagos directory contains several subdirectories. I don't really 
-care about most of them; the most immediately important ones are "shells" and 
-"middleware". Shells has one directory for each board Galapagos supports, each 
-containing constraints files and some TCL scripts. Middleware contains all the 
-custom IPs Galapagos uses and all the scripts that generate projects.
+BONES AND SINEW
+---------------
+
+The shells directory contains a bunch of TCL scripts that work together 
+together to create a shell. See the "Build Scripts" section for more details.
+
+The middleware directory contains all the python scripts that 
+
+
+PROJECTS
+--------
 
 When you create a Galapagos project, the scripts will create a "projects" 
 directory inside the main Galapagos directory, and it will put your stuff 
 inside a new directory within "projects".
 
 Why not let the user use their own directories?
+
+
+USER IPs
+--------
+
 
 
 =====================
@@ -190,27 +201,29 @@ MAKEFILES
 
 The makefile in the main Galapagos directory has several targets you can use:
 
-all:
-    (Does all the following targets)
+    all:
+        (Does all the following targets)
 
-example_shell:
-    I think this creates an... example shell? Honestly I have no idea
+    example_shell:
+        I think this creates an... example shell? Honestly I have no idea
 
-middleware:
-    God what a mess! To use this target, you must set the PROJECTNAME, 
-    LOGICALFILE, and MAPPINGFILE environment variables. This target is the one 
-    which generates your project scripts, including createCluster.sh
+    middleware:
+        To use this target, you must set the PROJECTNAME, LOGICALFILE, and 
+        MAPPINGFILE environment variables. This target is the one which 
+        generates your project scripts, including createCluster.sh
 
-hlsmiddleware:
-    Given the GALAPAGOS_PART (and a few others) generates the custom IPs in 
-    middleware/hls. You must call this for each target FPGA. 
-    
-    Don't forget to call galapagos-update-board first!
+    hlsmiddleware:
+        Given the GALAPAGOS_PART (and a few others) generates the custom IPs in 
+        middleware/hls. You must call this for each target FPGA. 
+        
+        Don't forget to call galapagos-update-board first!
 
-clean:
-    Does what it says on the tin.
+    clean:
+        Does what it says on the tin.
 
 
+There is also a Makefile in shells/Makefile. It is never used in the usual 
+Galapagos design flow; it may as well be deleted.
 
 =========================
 LOGICAL AND MAPPING FILES
