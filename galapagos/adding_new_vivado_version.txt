@@ -6,20 +6,22 @@ I use Vivado 2018.3. Galapagos doesn't support anything beyond Vivado 2018.2.
 So, I went through to figure out how to add support. You need to perform the 
 following steps:
 
-    1) Add an elseif clause in shells/tclScripts/shell_bd.tcl
+    1) Add an elseif clause in shells/YOUR_BOARD/tclScripts/shell_bd.tcl. Yes,
+       you have to do this for every board you want to use.
     
-    2) Painstakingly go through and find all the damned IP version strings that 
-       match your version of Vivado. For the love of all things holy WHY OH WHY
-       can't Vivado just let you use the specified IP version number???????????
+    2) Painstakingly go through and find all the IP version strings that 
+       match your version of Vivado.
 
 
 ========================
 ADDING THE ELSEIF CLAUSE
 ========================
 
+(UPDATE: Not all shell_bd.tcl scripts use this method)
+
 At the time of writing, there is an if-elseif-else clause starting on line 164 
-of shells/tclScripts/shell_bd.tcl. (This clause may move if the file is edited; 
-look for the comment that says
+of shells/YOUR_BOARD/tclScripts/shell_bd.tcl. (This clause may move if the file 
+is edited; look for the comment that says
 
     #ADD CLAUSE HERE TO SUPPORT NEW VERSIONS
 
@@ -68,9 +70,12 @@ to:
 FIX THE IP VERSIONS
 ===================
 
-This is _beyond_ asinine. Suppose that in 2018.2 you used the AXI BRAM 
-controller; if you added this to your block diagram, Vivado would have run the 
-following TCL command:
+(UPDATE: I've just discovered a fix that makes this step unnecessary. I will 
+get to work on applying it to the Galapagos scripts and eventually remove this 
+section).
+
+Suppose that in 2018.2 you used the AXI BRAM controller; if you added this to 
+your block diagram, Vivado would have run the following TCL command:
 
     create_bd_cell -type ip -vlnv xilinx.com:ip:axi_bram_ctrl:4.0 axi_bram_ctrl_0
 
@@ -85,20 +90,15 @@ versions are available in 2018.3? That's probably better anyway, since the new
 versions may break things and we'd rather use the old one that is known to 
 work."
 
-Well that's just too effing bad!
+Too bad for you!
 
 Vivado 2018.3 refuses to let you use version 4.0. In fact,
 
     https://forums.xilinx.com/t5/Design-Entry/working-with-older-IP-versions-when-newer-available-problem-when/td-p/772723
 
-Xilinx, in their nigh infinite wisdom have made regression impossible. (Oh 
-sure, you can lug around old folders from old Vivado versions, but imagine how 
-Galapagos would look if we did that...) Many choice words come to mind, but we 
-have work to do, so let's move on.
-
 Luckily for us, Naif (or maybe Varun) have already found a solution to this 
-problem. At the top of shells/tclScripts/shell_bd.tcl, notice that there are
-several namespace blocks that look like this:
+problem. At the top of shells/YOUR_BOARD/tclScripts/shell_bd.tcl, notice that 
+there are several namespace blocks that look like this:
 
     namespace eval 2018.2 {
       set ip_list "\ 
