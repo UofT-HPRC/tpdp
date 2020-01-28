@@ -1,0 +1,160 @@
+========
+OVERVIEW
+========
+
+I use Vivado 2018.3. Galapagos doesn't support anything beyond Vivado 2018.2. 
+So, I went through to figure out how to add support. You need to perform the 
+following steps:
+
+    1) Add an elseif clause in shells/tclScripts/shell_bd.tcl
+    
+    2) Painstakingly go through and find all the damned IP version strings that 
+       match your version of Vivado. For the love of all things holy WHY OH WHY
+       can't Vivado just let you use the specified IP version number???????????
+
+
+========================
+ADDING THE ELSEIF CLAUSE
+========================
+
+At the time of writing, there is an if-elseif-else clause starting on line 164 
+of shells/tclScripts/shell_bd.tcl. (This clause may move if the file is edited; 
+look for the comment that says
+
+    #ADD CLAUSE HERE TO SUPPORT NEW VERSIONS
+
+Basically, just copy the format that's already there. For example, when I added 
+2018.3, I changed the original:
+
+    set current_vivado_version [version -short]
+    if { [string first 2017.2 $current_vivado_version] != -1 } {
+      set version 2017.2
+    } elseif { [string first 2017.4 $current_vivado_version] != -1 } {
+      set version 2017.4
+    } elseif { [string first 2018.1 $current_vivado_version] != -1 } {
+      set version 2018.1
+    } elseif { [string first 2018.2 $current_vivado_version] != -1 } {
+      set version 2018.2
+    } else {
+      puts ""
+      catch {common::send_msg_id "BD_TCL-109" "ERROR" "Unsupported Vivado version:\
+        $current_vivado_version for shell_bd.tcl"}
+      return 1
+    }
+
+to:
+
+    set current_vivado_version [version -short]
+    if { [string first 2017.2 $current_vivado_version] != -1 } {
+      set version 2017.2
+    } elseif { [string first 2017.4 $current_vivado_version] != -1 } {
+      set version 2017.4
+    } elseif { [string first 2018.1 $current_vivado_version] != -1 } {
+      set version 2018.1
+    } elseif { [string first 2018.2 $current_vivado_version] != -1 } {
+      set version 2018.2
+    } elseif { [string first 2018.3 $current_vivado_version] != -1 } {
+      # MM Jan 28/2020: Added support for 2018.3
+      set version 2018.3
+    } else {
+      puts ""
+      catch {common::send_msg_id "BD_TCL-109" "ERROR" "Unsupported Vivado version:\
+        $current_vivado_version for shell_bd.tcl"}
+      return 1
+    }
+
+
+===================
+FIX THE IP VERSIONS
+===================
+
+This is _beyond_ asinine. Suppose that in 2018.2 you used the AXI BRAM 
+controller; if you added this to your block diagram, Vivado would have run the 
+following TCL command:
+
+    create_bd_cell -type ip -vlnv xilinx.com:ip:axi_bram_ctrl:4.0 axi_bram_ctrl_0
+
+But, if you do the same thing in 2018.3, this command gets used instead:
+
+    create_bd_cell -type ip -vlnv xilinx.com:ip:axi_bram_ctrl:4.1 axi_bram_ctrl_0
+
+(notice that the IP version is 4.1 instead of 4.0).
+
+"Oh, I have an idea, why don't we just keep using version 4.0 even if newer IP 
+versions are available in 2018.3? That's probably better anyway, since the new 
+versions may break things and we'd rather use the old one that is known to 
+work."
+
+Well that's just too effing bad!
+
+Vivado 2018.3 refuses to let you use version 4.0. In fact,
+
+    https://forums.xilinx.com/t5/Design-Entry/working-with-older-IP-versions-when-newer-available-problem-when/td-p/772723
+
+Xilinx, in their nigh infinite wisdom have made regression impossible. (Oh 
+sure, you can lug around old folders from old Vivado versions, but imagine how 
+Galapagos would look if we did that...) Many choice words come to mind, but we 
+have work to do, so let's move on.
+
+Luckily for us, Naif (or maybe Varun) have already found a solution to this 
+problem. At the top of shells/tclScripts/shell_bd.tcl, notice that there are
+several namespace blocks that look like this:
+
+    namespace eval 2018.2 {
+      set ip_list "\ 
+        xilinx.com:ip:axi_bram_ctrl:4.0\
+        xilinx.com:ip:axi_gpio:2.0\
+        xilinx.com:ip:blk_mem_gen:8.4\
+        xilinx.com:ip:clk_wiz:6.0\
+        xilinx.com:ip:xlconstant:1.1\
+        xilinx.com:ip:system_ila:1.1\
+        xilinx.com:ip:util_vector_logic:2.0\
+        xilinx.com:ip:vio:3.0\
+        xilinx.com:ip:util_ds_buf:2.1\
+        xilinx.com:ip:xdma:4.1\
+        xilinx.com:ip:mdm:3.2\
+        xilinx.com:ip:microblaze:10.0\
+        xilinx.com:ip:proc_sys_reset:5.0\
+        xilinx.com:ip:ddr4:2.2\
+        xilinx.com:ip:axi_10g_ethernet:3.1\
+        dlyma.org:dlyma:network_packet_fifo_rx:1.1\
+        dlyma.org:dlyma:network_packet_fifo_tx:1.1\
+        xilinx.com:ip:axis_register_slice:1.1\
+        xilinx.com:ip:lmb_bram_if_cntlr:4.0\
+        xilinx.com:ip:lmb_v10:3.0\
+        xilinx.com:ip:fifo_generator:13.2\
+        xilinx.com:ip:zynq_ultra_ps_e:3.2\
+        xilinx.com:ip:xxv_ethernet:2.4
+      "
+    }
+
+What I did was to copy one of these, change the version number to 2018.3, and 
+fix the versions for each and every IP in the list. It's tedious, but not that 
+hard. Let's take the AXI BRAM controller for example.
+
+    1) Open a blank block diagram in Vivado. By the way, it might be a good 
+      idea to do this inside a project set to use the same FPGA you plan to 
+      target with Galapagos, but I'm not sure if that's needed.
+    
+    2) Click the plus button to add a new IP. Add in an "AXI BRAM Controller" 
+       in the usual way.
+    
+    3) In the TCL console, you will see a command like this:
+    
+            create_bd_cell -type ip -vlnv xilinx.com:ip:axi_bram_ctrl:4.1 axi_bram_ctrl_0
+    
+    4) From that command, we extract the IP's full name, which is 
+       xilinx.com:ip:axi_bram_ctrl:4.1
+    
+    5) In the copied block for 2018.3, change the IP name accordingly:
+    
+        namespace eval 2018.3 {
+          set ip_list "\ 
+            xilinx.com:ip:axi_bram_ctrl:4.1\
+            ...
+
+So just do that for all the Xilinx IPs and you should be OK. To update it for 
+2018.3, I only ended up needing to change the AXI BRAM controller, MicroBlaze, 
+and xxv_ethernet versions. I ran into trouble with the AXI 10g ethernet, since 
+there is no IP by that name in 2018.3, but maybe it will work anyway?
+    
