@@ -15,16 +15,16 @@
 # at the end of this script
 
 
-start_gui; # Remove this line after copying TCL commands
+start_gui; # Remove this line after copying TCL commands (see below)
 
 set ip_name [lindex $argv 0]
 set part_name [lindex $argv 1]
-set project_name ${ip_name}_ip
-create_project -in_memory ${project_name} ${project_name} -part $part_name
-import_files $ip_name/solution1/syn/verilog
-ipx::package_project -root_dir ${project_name}/${project_name}.srcs/sources_1/imports -vendor YOUR_NAME -library user -taxonomy /UserIP
+set project_name ${ip_name}_tmp_proj
+create_project ${project_name} ${project_name} -part ${part_name}
+add_files ${ip_name}/src
+ipx::package_project -root_dir ${ip_name} -vendor Marco_Merlini -library fpga_bpf -taxonomy /UserIP
 
-# start GUI
+# GUI has started
 
 ###PUT_YOUR_COMMANDS_HERE
 
@@ -38,7 +38,6 @@ ipx::package_project -root_dir ${project_name}/${project_name}.srcs/sources_1/im
 ###ipx::save_core [ipx::current_core]
 ###close_project 
 ###exit
-
 
 
 

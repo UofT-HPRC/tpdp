@@ -1,0 +1,131 @@
+========
+OVERVIEW
+========
+
+I just stumbled onto Xilinx UG1198, which is all about how to use Vivado 
+efficiently with git. There's a little bit of black magic in the TCL commands 
+(many of which are not documented in any User Guides!) so I've tried to explain 
+what's going on here.
+
+This doc covers:
+
+    1) Managing block-diagram-based Vivado projects.
+    
+    2) Packaging custom IPs written in HDL
+    
+    3) Packaging custom IPs written in HLS
+    
+    4) Tips on including synthesis/implementation results
+
+The main idea behind all of these methods is to NOT put any files in the folder 
+used by your Vivado project. Instead, all source files should be completely 
+separate, with only minimal TCL scripts for re-generating a Vivado project. The 
+source files and TCL scripts will go into your git repo.
+
+In general, re-generating the Vivado project only takes a few seconds. And if 
+you're careful about how you write your scripts, you can safely delete the 
+Vivado project and re-make it whenever you need it. 
+
+    -> I currently do not know the best way to send synthesis and 
+       implementation results to someone. However, I almost never do this; it's
+       not that big a deal to send your source files and have someone else redo
+       the synthesis and implementation.
+
+
+==========
+WATCH OUT!
+==========
+
+Vivado assumes you are a fat slob who derives erotic pleasure from clutter. Git 
+is too busy smashing rocks to have any opinions about you in the first place.
+
+What am I trying to say? Read on to find out...
+
+LITTERING IS A CRIME
+--------------------
+
+Both the vivado and vivado_hls commands will, by default, generate a hideous 
+and unforgivable amount of junk files on your hard drive. For example, suppose
+you are in your home folder:
+
+    $ cd 
+    $ # What a beautiful day! I think I'll open Vivado!
+    $ vivado &
+    
+Congratulations, you've won! That's right, your home folder now contains the 
+following garbage:
+    
+    $ ls
+    ...(your other files in your home folder)...
+    hs_err_pid10113.log                vivado_13333.backup.jou
+    hs_err_pid12600.log                vivado_13333.backup.log
+    hs_err_pid15268.log                vivado_21559.backup.jou
+    hs_err_pid15382.log                vivado_21559.backup.log
+    hs_err_pid1872.log                 vivado_28265.backup.jou
+    hs_err_pid19976.log                vivado_28265.backup.log
+    hs_err_pid20444.log                vivado_8093.backup.jou
+    hs_err_pid20458.log                vivado_8093.backup.log
+    hs_err_pid22953.log                vivado_9693.backup.jou
+    hs_err_pid24192.log                vivado_9693.backup.log
+    hs_err_pid4169.log                 vivado.jou
+    hs_err_pid5702.log                 vivado.log
+    hs_err_pid8093.log                 vivado_pid32581.str
+    hs_err_pid9693.log                 webtalk_13602.backup.jou
+    updatemem_25682.backup.jou         webtalk_13602.backup.log
+    updatemem_25682.backup.log         webtalk_15674.backup.jou
+    updatemem_3004.backup.jou          webtalk_15674.backup.log
+    updatemem_3004.backup.log          webtalk_19545.backup.jou
+    updatemem_4674.backup.jou          webtalk_19545.backup.log
+    updatemem_4674.backup.log          webtalk_20021.backup.jou
+    updatemem_6203.backup.jou          webtalk_20021.backup.log
+    updatemem_6203.backup.log          webtalk_31341.backup.jou
+    updatemem_7836.backup.jou          webtalk_31341.backup.log
+    updatemem_7836.backup.log          webtalk.jou
+    updatemem.jou                      webtalk.log
+    updatemem.log                      
+                                       
+Granted, you have to open and close Vivado a few times before it gets this bad, 
+but that's not all:
+
+    $ ls -a
+    ...(all the files from before)...
+    .Xil/
+
+Hmmm, what's this hidden folder?
+
+    $ tree .Xil
+    ...(so much output that I didn't bother to copy it in)...
+
+What on Earth? How big is that folder??
+
+    $ du -sh .Xil
+    42M	.Xil/
+
+But maybe the worst offender is Vivado HLS. In every HLS project, it generates 
+a hidden folder called ".autopilot/". No one knows what it's for (HLS still 
+works if you delete it) and yet this folder can be enormous! I've had some be 
+over 1 GB in size! On average, it's about 20 MB, but it will grow as you 
+continue to develop the project.
+
+MORAL OF THE STORY
+------------------
+
+It is very easy to accidentally commit some of these junk files in a git repo. 
+Once a file is committed, it's too late! It's extremely difficult to remove it! 
+Even if you delete this file, git hangs on to it in case you want to go back in 
+the history, and anyone who clones the repo will still have to download it. 
+This is a problem if you acidentally commit a huge folder with many megabytes 
+of digital clutter.
+
+    NOTE: There are some horribly complicated git commands you can run which 
+    can potentially eradicate a file from a git repo, but I've never gone down 
+    that road. It was easier just to make a new repo and copy all the files I 
+    wanted to keep.
+
+
+===============================================
+MANAGING BLOCK DIAGRAM (IP INTEGRATOR) PROJECTS
+===============================================
+
+
+
