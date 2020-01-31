@@ -1,8 +1,5 @@
-# Copied from Clark's traffic generator project
-# Modified to match the particular project
-
 # Call as:
-# vivado -mode tcl -nolog -nojournal -source scripts/ip_package.tcl -tclargs $ip_name $part_name
+# vivado -mode tcl -nolog -nojournal -source scripts/ip_package.tcl -tclargs $out_dir $ip_name $part_name
 
 
 # INSTRUCTIONS
@@ -17,19 +14,15 @@
 
 start_gui; # Remove this line after copying TCL commands (see below)
 
-set ip_name [lindex $argv 0]
-set part_name [lindex $argv 1]
+set out_dir [lindex $argv 0]
+set ip_name [lindex $argv 1]
+set part_name [lindex $argv 2]
 set project_name ${ip_name}_tmp_proj
 create_project ${project_name} ${project_name} -part ${part_name}
-add_files ${ip_name}/src
-ipx::package_project -root_dir ${ip_name} -vendor Marco_Merlini -library fpga_bpf -taxonomy /UserIP
+add_files ${out_dir}/src
+ipx::package_project -root_dir ${out_dir} -vendor Marco_Merlini -library fpga_bpf -taxonomy /UserIP
 
-# GUI has started
-
-###PUT_YOUR_COMMANDS_HERE
-
-# done with GUI
-
+###PUT YOUR COMMANDS HERE
 
 # Uncomment these lines after copying TCL commands from gui
 
