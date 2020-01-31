@@ -9,7 +9,9 @@ Verilog files in /my/src/dir
            in ".v", ".sv", or ".vh"
     3. Set the ip_name and part_no to be the desired IP name and part number, 
        respectively.
-    2. Run make
+    4. Set the vendor and library in the ipx::package_project command in 
+       ip_maker.tcl (line 23)
+    5. Run make
     
 That should just work, but if it doesn't, feel free to contact me
 
