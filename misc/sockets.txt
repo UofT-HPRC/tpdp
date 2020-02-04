@@ -412,12 +412,12 @@ Without further ado, here is the code.
                 break;
             } else if (numRead == -1) {
                 perror("Error while receiving client data");
-                goto err_close_socket;
+                goto err_close_client;
             }
             fprintf(stderr, "Read %d bytes from client\n", numRead);
             int rc = send_str(cfd, buf, numRead);
             if (rc) {
-                goto err_close_socket;
+                goto err_close_client;
             }
         }
         
@@ -425,10 +425,10 @@ Without further ado, here is the code.
         
         return 0;
 
-    err_close_socket:
-        close(sfd);
     err_close_client:
         close(cfd);
+    err_close_socket:
+        close(sfd);
     err_nothing:
         return -1;
     }
