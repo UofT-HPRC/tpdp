@@ -1,0 +1,432 @@
+========
+OVERVIEW
+========
+
+This document explains how to use sockets for sending messages over the 
+internet. Sockets can be used for all kinds of things, so I'm only covering 
+what I ended up using for my own projects. 
+
+Each of the steps in the following lists is shown in detail (with examples) in 
+later sections.
+
+The general procedure for a UDP server is as follows:
+
+    1) Tell the kernel you want a socket by using the socket() system call. The 
+       returned value is an integer, which you will use in subsequent system 
+       calls to tell the kernel which socket you're talking about.
+    
+    2) Indicate the port you want to listen on, and that you want a "datagram" 
+       socket. This is done with the bind() system call. At this point, you 
+       have only reserved the address; the kernel is not sending any data to 
+       your process.
+    
+    3) Now tell the kernel that you're ready to accept data on the port with 
+       the recvfrom() system call. This returns the data into one of your 
+       buffers, and also tells you where the data came from.
+       
+       You can also send data using the sendto() system call.
+    
+    4) When you're done use the close() system call.
+
+The general procedure for a TCP server is as follows:
+
+    1) Tell the kernel you want a socket by using the socket() system call. The 
+       returned value is an integer, which you will use in subsequent system 
+       calls to tell the kernel which socket you're talking about. This will 
+       cause the kernel to construct some structs in kernel memory.
+    
+    2) Indicate the port you want to listen on, and that you want a "stream" 
+       socket (as opposed to a "datagram" socket). This is done with the bind() 
+       system call. At this point, you have only reserved the address. Any 
+       incoming TCP connections will be refused at this point.
+    
+    3) Now indicate that you _are_ ready for incoming connections by using the 
+       listen() system call. At this point, the kernel will allow incoming TCP 
+       connections, but will not send any data to your process.
+       
+       To be very honest, I'm not really sure why the API requires this call to 
+       listen(). 
+    
+    4) The kernel must maintain state for each incoming connection to your 
+       port. Each of these connections is managed with (you guessed it) a new 
+       socket.
+       
+       Here's what you do: use the accept() system call to tell the kernel 
+       you're ready to be informed when a connection is opened. The return 
+       value is an integer, which is a handle a newly made socket for your 
+       process. 
+       
+       In other words, your original socket is known as a "listener socket", 
+       and calling accept() on it tells the kernel to allow NEW incoming TCP 
+       connections. The sockets returned by the accept() call are what you will 
+       use to actually send data back and forth on an EXISTING open connection.
+    
+    5) On the sockets returned by the accept() call, use the read() and write() 
+       system calls in the usual way. This will send data back and forth 
+       between both endpoints.
+       
+       By the way, if you call read() on one of these sockets and it returns 0 
+       bytes, that means the guy at the other end closed the TCP connection. Go 
+       to step 6.
+       
+       I think you can use recvfrom() and and sendto() instead, but I don't 
+       know why you would do that.
+    
+    6) For each socket returned by the accept() system call, call close() when 
+       you are finished with it. 
+    
+    7) When you're done listening for new connections, call close() on your 
+       original socket (that you opened in step 1).
+
+Luckily, the procedure for clients is much simpler. For UDP,
+
+    1) Call socket()
+    
+    2) Call recvfrom() and sendto() to send data back and forth
+    
+    3) Call close() when you're done
+
+And for TCP clients,
+
+    1) Call socket()
+    
+    2) Call connect() with the address of the remote host. This causes the 
+       kernels of both communicating computers to do the elaborate dance that 
+       opens TCP connections.
+    
+    3) Use read() and write() to send data back and forth
+    
+    4) Call close() when you're done
+
+One last thing before we start: the man pages for each of these system calls 
+are really quite good. Check them out by typing
+
+    $ man 2 <function>
+
+The '2' is needed since some of these function names appear in other parts of 
+the man pages, and the '2' means to only search the system call pages.
+
+
+==================
+TCP SERVER EXAMPLE
+==================
+
+This implements an echo server (i.e. anything that is sent is returned 
+verbatim). Within the text, I have removed error-checking code for clarity. See 
+the end of this section for the full code.
+
+OPENING A SOCKET
+----------------
+    
+    #include <sys/socket.h>
+    int sfd = socket(AF_INET, SOCK_STREAM, 0);
+
+In Linux, a socket is used for more than just internet communications. The 
+first argument is the domain, and we'll use AF_INET (which manes IPv4 internet 
+connections). We use the second argument to ask for a stream socket, which in 
+IPv4 means TCP. The last argument has no effect for internet sockets, so we 
+leave it as 0.
+
+
+BINDING TO AN ADDRESS
+---------------------
+
+The next step is to bind to an address. First, we'll fill a struct with the 
+desired IP and port numbers, then call the bind() system call:
+
+    #include <arpa/inet.h>
+    
+    struct sockaddr_in my_addr = {
+        .sin_family = AF_INET,
+        .sin_port = htons(4567),
+        .sin_addr = {INADDR_ANY}
+    };
+
+    bind(sfd, (struct sockaddr *) &my_addr, sizeof(struct sockaddr_in));
+
+Okay, what is going on here? 
+
+-> We fill an "internet" socket address struct (the "in" means internet). 
+   We use AF_INET to mena IPv4 as opposed to IPv6. 
+   
+-> The port number has to be a 16 bit number in network order (big endian). 
+   The function htons() from <arpa/inet.h> means "Host to Network Short".
+
+-> The sin_addr member of the sockaddr_in struct is actually another 
+   struct. It's actually just a 32 bit integer. We use the macro INADDR_ANY 
+   to tell the Linux kernel that we are willing to accept connections from 
+   any remote host.
+
+-> The bind system call actually takes a (struct sockaddr *) as its second 
+   argument. See, sockets aren't just used for internet addresses, so 
+   different domains have different socket address structs to represent 
+   them. In C, you have to pick one type for the function call parameter, 
+   so this is the one that was chosen.
+   
+   The second and third argument of bind could have been a void pointer and 
+   a length, but for some reason it's a struct sockaddr pointer and a 
+   length. Go figure.
+
+Alright, hopefully you're not completely lost. Luckily, everything else is 
+pretty straightforward.
+
+
+LISTENING FOR AND ACCEPTING CONNECTIONS
+---------------------------------------
+
+Now we tell the kernel that we're ready to listen for incoming connections:
+
+    listen(sfd, 1);
+
+The second argument is called "backlog". It is used to tell the kernel how many 
+new TCP connections it should allow before we accept them. For example, suppose 
+we call listen(sfd, 10) and then our process goes to sleep for whatever reason. 
+Suppose that while our process is asleep, the kernel receives a bunch of TCP 
+connection requests to our port; the first 10 will be connected (i.e. the 
+kernel will do all the TCP handshaking with the remote host) but subsequent 
+connection requests will be refused. However, once our process wakes up and 
+starts calling accept() [described below], the kernel can start allowing new 
+incoming TCP connections.
+
+The last step is accepting connections from the kernel:
+
+    struct sockaddr_in client_addr;
+    int client_sfd = accept(sfd, (struct sockaddr *) &client_addr, sizeof(struct sockaddr_in));
+
+The second parameter is a pointer to a socket address struct, and the third 
+parameter says how big it is. This is how the kernel will tell you the address 
+of the external party that opened a TCP connection with your server. If you 
+don't care about this information, you can leave the second argument as NULL.
+
+
+SENDING/RECEIVING DATA
+----------------------
+
+At this point, client_sfd is a socket which represents the opened TCP 
+connection between you and the remote host. You can call read() and write() on 
+it to send data:
+
+    #define BUF_SZ 64
+    
+    //Helper function to send a buffer over a TCP socket
+    int send_buffer(int sfd, char *msg, int msglen) {
+        int sent = 0;
+        while (sent < msglen) {
+            int num = write(sfd, msg+sent, msglen - sent);
+            sent += num;
+        }
+        return 0;
+    }
+    
+    //... inside the main function ...
+    while(1) {
+        char buf[BUF_SZ];
+        int numRead = read(cfd, buf, BUF_SZ);
+        if (numRead == 0) {
+            fprintf(stderr, "Connection closed\n");
+            break;
+        }
+        send_buffer(cfd, buf, numRead);
+    }
+
+A few words about this code:
+
+-> When you call write(), it is not guaranteed that all bytes will be sent. The 
+   return value tells you how many bytes got through, and you can keep calling 
+   write() in a loop until you're done. See complete example, which includes 
+   error-checking code.
+   
+-> The write() function will block until the data is sent.
+
+-> The read() function will try to read as many bytes as you ask for (64 in 
+   this example). 
+   
+   -> If there are zero bytes available to read, the function will block.
+   
+   -> If there are more than zero bytes available, but less than or equal to 
+      what you asked for, the kernel will read all the available bytes 
+      immediately. The return value tells you how many bytes were transferred.
+   
+   -> If there are more bytes available than what you asked for, you will get 
+      exactly as many as you asked for, and you'll get more immediately the 
+      next time you call read().
+   
+   -> If the connection was closed by another party, the read() function will 
+      return 0.
+
+
+COMPLETE EXAMPLE
+----------------
+
+This puts the little bits of code from above together. I have added all 
+error-checking code, I added a SIGINT handler, and I took the liberty of moving 
+the steps to set up the listening socket into a separate function 
+(get_listener_sockfd).
+
+You can interact with this echo server using the telnet program:
+
+    $ telnet localhost 14621
+    Trying ::1...
+    Connection failed: Connection refused
+    Trying 127.0.0.1...
+    Connected to localhost.
+    Escape character is '^]'.
+    Welcome to my server
+    Hello! 
+    Hello!
+    What a great echo server!
+    What a great echo server!
+*   ^]
+    telnet> quit
+    Connection closed.
+
+On the starred line, I hit CTRL-] in order to quit from telnet. The logs 
+printed from the echo server were as follows:
+
+    Received incoming connection from 127.0.0.1
+    Read 8 bytes from client
+    Read 16 bytes from client
+    Read 11 bytes from client
+    Connection closed
+
+The first 8 bytes that were received were from the "Hello!\n" message. The 
+second message was bigger than the buffer size I ask for in the code, so it was 
+split into two read() calls. Finally, when I exited from telnet, the read() 
+function returned 0 and my echo server closed itself.
+
+Without further ado, here is the code.
+
+
+    #include <stdio.h>
+    #include <sys/types.h> //For sockaddr types
+    #include <sys/socket.h> //For socket (duh)
+    #include <unistd.h> //For close()
+    #include <arpa/inet.h> //For host-to-network byte order conversions
+                           //and inet_ntop
+    #include <signal.h>
+    #include <errno.h>
+    #include <string.h>
+
+
+    int send_str(int sfd, char *msg, int msglen) {
+        int sent = 0;
+        while (sent < msglen) {
+            int num = write(sfd, msg+sent, msglen - sent);
+            if (errno != 0) {
+                perror("Could not perform write");
+                return -1;
+            }
+            sent += num;
+        }
+        
+        return 0;
+    }
+
+    int get_listener_sockfd(int port) {
+        int sfd = socket(AF_INET, SOCK_STREAM, 0);
+        if (sfd == -1) {
+            perror("Could not open socket");
+            goto err_nothing;
+        }
+        
+        struct sockaddr_in my_addr = {
+            .sin_family = AF_INET,
+            .sin_port = htons(port),
+            .sin_addr = {INADDR_ANY}
+        };
+        
+        int rc = bind(sfd, (struct sockaddr*)&my_addr, sizeof(struct sockaddr_in));
+        if (rc == -1) {
+            perror("Could not bind socket");
+            goto err_close_socket;
+        }
+        
+        rc = listen(sfd, 1);
+        if (rc == -1) {
+            perror("Could not listen on address 14621");
+            goto err_close_socket;
+        }
+        
+        return sfd;
+        
+    err_close_socket:
+        close(sfd);
+        
+    err_nothing:
+        return -1;
+    }
+
+    volatile int stop = 0;
+
+    static void sigint_handler(int signum) {
+        stop = 1;
+    }
+
+    int main() {
+        
+        struct sigaction sa;
+        sa.sa_handler = sigint_handler;
+        sigemptyset(&sa.sa_mask);
+        sa.sa_flags = SA_RESTART;
+        
+        if (sigaction(SIGINT, &sa, NULL) == -1) {
+            perror("Could not register SIGINT handler");
+            goto err_nothing;
+        }
+        
+        int sfd = get_listener_sockfd(14621);
+        if (sfd == -1) {
+            return -1;
+        }
+        
+        struct sockaddr_in client;
+        unsigned len = sizeof(struct sockaddr_in);
+        
+        int cfd = accept(sfd, (struct sockaddr*)&client, &len);
+        if (cfd == -1) {
+            perror("Could not accept connection");
+            goto err_close_socket;
+        }
+        
+        char client_str[INET_ADDRSTRLEN];
+        if (!inet_ntop(AF_INET, &(client.sin_addr), client_str, INET_ADDRSTRLEN)) {
+            perror("Could not convert IPv4 to human-readable");
+            goto err_close_client;
+        }
+        
+        fprintf(stderr, "Received incoming connection from %s\n", client_str);
+        
+        char msg[] = "Welcome to my server\n";
+        const int msglen = sizeof(msg)-1;
+        if (send_str(cfd, msg, msglen)) {
+            goto err_close_client;
+        }
+        
+        while(!stop) {
+            //Make this small just to see what happens
+            #define BUF_SZ 16
+            char buf[BUF_SZ];
+            int numRead = read(cfd, buf, BUF_SZ);
+            if (numRead == 0) {
+                fprintf(stderr, "Connection closed\n");
+                break;
+            } else if (numRead == -1) {
+                perror("Error while receiving client data");
+                goto err_close_socket;
+            }
+            fprintf(stderr, "Read %d bytes from client\n", numRead);
+            send_str(cfd, buf, numRead);
+        }
+        
+        close(sfd);
+        
+        return 0;
+
+    err_close_socket:
+        close(sfd);
+    err_close_client:
+        close(cfd);
+    err_nothing:
+        return -1;
+    }
+
