@@ -415,7 +415,10 @@ Without further ado, here is the code.
                 goto err_close_socket;
             }
             fprintf(stderr, "Read %d bytes from client\n", numRead);
-            send_str(cfd, buf, numRead);
+            int rc = send_str(cfd, buf, numRead);
+            if (rc) {
+                goto err_close_socket;
+            }
         }
         
         close(sfd);
