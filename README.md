@@ -72,3 +72,173 @@ need to know to develop on the MPSoC boards.
  - A much better method Varun uses to auto-generate entire simulation rigs
  
 More to come...
+
+```
+├── bugs_and_fixes_and_workarounds_oh_my
+│   ├── 100g_headaches.txt
+│   ├── axi_interconnect_woes.txt
+│   ├── debug_bridge_anguish.txt
+│   ├── dma_sorrow.txt
+│   ├── mpsoc_blues.txt
+│   ├── other_axi_troubles.txt
+│   ├── README
+│   └── vivado_gotchas.txt
+├── configuring_server
+│   ├── 100g_switch
+│   │   └── 100g_switch.csv
+│   ├── 100m_switch
+│   │   └── 100m_switch.csv
+│   ├── 10g_switch
+│   │   └── 10g_switch.csv
+│   ├── 1g_switch
+│   │   └── 1g_switch.csv
+│   └── README
+├── galapagos
+│   ├── adding_new_vivado_version.txt
+│   └── moving_parts.txt
+├── helpful_scripts
+│   ├── how_clark_compiles_hls
+│   │   ├── config.mk
+│   │   ├── include
+│   │   │   └── PUT_YOUR_HEADER_FILES_HERE
+│   │   ├── Makefile
+│   │   ├── README
+│   │   ├── scripts
+│   │   │   ├── clean_names.sh
+│   │   │   ├── hls.tcl
+│   │   │   ├── ip_package.tcl
+│   │   │   └── pick_up_vivados_dirty_socks.sh
+│   │   └── src
+│   │       └── PUT_YOUR_SOURCE_FILES_HERE
+│   ├── mpsoc_bash_stuff
+│   │   ├── camilos_aliases
+│   │   ├── clarks_aliases
+│   │   ├── disablePci.sh
+│   │   ├── enableATB.sh
+│   │   ├── marcos_aliases
+│   │   └── README
+│   ├── packaging_custom_ip
+│   │   ├── ip_maker.tcl
+│   │   ├── Makefile
+│   │   └── README.txt
+│   └── tcl_utilities
+│       ├── 100g_qsfp0.tcl
+│       ├── 100g_qsfp1.tcl
+│       └── ps_set_sidewinder.tcl
+├── hls_stuff
+│   ├── quick_and_dirty_interfaces
+│   │   ├── axilite_reg_intf.cpp
+│   │   └── quick_and_dirty_interfaces.txt
+│   └── README.txt
+├── ip_core_tidbits
+│   ├── axi_dma.txt
+│   ├── axi_gpio.txt
+│   ├── ddr4_mig.txt
+│   ├── gulf_stream_and_lbus_converters.txt
+│   ├── usplus_100g.txt
+│   └── xdma.txt
+├── linux_kernel_programming
+│   ├── basic_driver.c
+│   ├── basic_memory_management_and_mmap.txt
+│   ├── compiling_mpsoc_modules.txt
+│   ├── device_tree_overlays.txt
+│   ├── driver_basics.txt
+│   ├── idioms.txt
+│   ├── interrupt_numbers.txt
+│   ├── README
+│   └── sysfs_tidbits.txt
+├── lwip
+│   └── the_limit_of_marcos_lwip_knowledge.txt
+├── misc
+│   ├── flex_bison_c++.txt
+│   ├── setting_up_lab_internet.txt
+│   ├── sockets.txt
+│   ├── tips_and_tricks.txt
+│   └── vivado_with_git.txt
+├── mpsoc_programming
+│   ├── drivers
+│   │   ├── mpsoc_axiregs
+│   │   │   ├── commentary
+│   │   │   ├── mpsoc_axiregs.c
+│   │   │   └── README
+│   │   ├── mpsoc_PSRegs
+│   │   │   ├── commentary
+│   │   │   └── mpsoc_PSRegs.c
+│   │   ├── pinner
+│   │   │   ├── commentary.c
+│   │   │   ├── pinner.c
+│   │   │   ├── pinner.h
+│   │   │   └── pinner_private.h
+│   │   ├── uio
+│   │   │   ├── axitimer_module.c
+│   │   │   ├── axitimer_user.c
+│   │   │   └── writing_uio_drivers.txt
+│   │   └── uio_with_sysfs
+│   │       ├── axidma_module.c
+│   │       ├── interrupt_numbers_refresher.txt
+│   │       ├── putting_it_together.txt
+│   │       ├── README.txt
+│   │       ├── sysfs_attribute_files.txt
+│   │       └── uio_refresher.txt
+│   ├── how_to_use_marcos_drivers
+│   │   ├── axidma
+│   │   │   ├── pinner.h
+│   │   │   ├── README.txt
+│   │   │   └── user_example.c
+│   │   ├── axidma_userlib
+│   │   └── pinner
+│   │       ├── pinner.h
+│   │       ├── README.txt
+│   │       └── userspace_example.c
+│   ├── old_and_crotchety_ps_to_pl.txt
+│   ├── poke
+│   │   ├── dpoke.c
+│   │   ├── poke.c
+│   │   └── README
+│   ├── ps_to_pl
+│   │   ├── include
+│   │   │   ├── axidma_ctrl_func.h
+│   │   │   ├── axidma_ioctl.h
+│   │   │   ├── conversion.h
+│   │   │   ├── libaxidma.h
+│   │   │   └── util.h
+│   │   ├── README
+│   │   ├── simple_register_accesses.txt
+│   │   ├── stream_and_dma.txt
+│   │   └── util
+│   │       ├── axidma_ctrl_func.c
+│   │       └── libaxidma.c
+│   ├── sshing_into_the_mpsoc.txt
+│   ├── the_onus_of_programming_the_mpsoc.txt
+│   └── xvcserver
+│       ├── README
+│       └── xvcserver_axi
+│           ├── include
+│           │   ├── xvc_axi2pl.h
+│           │   └── xvcserver.h
+│           ├── Makefile
+│           ├── output
+│           │   └── xvcserver
+│           └── src
+│               ├── xvc_axi2pl.cpp
+│               ├── xvc_server2axi.c
+│               └── xvc_server.c
+├── README.md
+└── simulation_idioms
+    ├── general_method
+    │   ├── general_method.txt
+    │   └── using_axi_vip.txt
+    ├── how_marco_writes_testbenches
+    │   ├── axistream_forwarder_drivers.mem
+    │   ├── axistream_forwarder_tb.sv
+    │   └── how_marco_writes_testbenches.txt
+    ├── quick_and_dirty_method
+    │   └── quick_and_dirty_sims.txt
+    ├── using_icarus_verilog
+    │   └── iverilog.txt
+    ├── using_sonar
+    └── vpi
+        ├── general_vpi.txt
+        ├── tutorial.txt
+        └── vpi_core_api.txt
+```
