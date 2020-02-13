@@ -1,0 +1,12 @@
+========
+OVERVIEW
+========
+
+In my opinion, the best way to use BRAMs in your design is to write Verilog 
+that gets inferred as a BRAM. That way, you can make your width and depth a 
+parameter in Verilog and Vivado will figure out a good way to implement it.
+
+As usual, the reference is the Xilinx Synthesis Technology (XST) manual, found 
+at:
+
+https://www.xilinx.com/support/documentation/sw_manuals/xilinx10/books/docs/xst/xst.pdf

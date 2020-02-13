@@ -1,0 +1,203 @@
+========
+OVERVIEW
+========
+
+I just spoke to Charles about LUT RAM, since there were some questions I wasn't 
+able to answer for myself. I decided I should throw together this document 
+before I forgot everything.
+
+LUT RAM can be a better choice than BRAMs for any of the following reasons:
+
+    - You need asynchronous reads
+    - You only need a "small" amount of memory (we'll discuss what memory 
+      widths and depths work well for LUT RAM)
+    - Since BRAMs are all in one column, LUT RAMs can be physically closer to 
+      your logic, thus improving timing.
+
+First we'll talk about how to write Verilog that Vivado will correctly infer as 
+LUT RAM. This uses the Xilinx Synthesis Technology (XST) manual as reference. 
+This document, by the way, is one of the few really good pieces of Xilinx 
+documentation, and is found here:
+
+https://www.xilinx.com/support/documentation/sw_manuals/xilinx10/books/docs/xst/xst.pdf
+
+Then, the most important thing to understand is the underlying architecture of 
+the LUTs; this is the only way to ensure you're getting efficient use of FPGA 
+resources. Charles pointed out to me that this information is found in the "CLB 
+User Guide" for the FPGA architecture you're using; in this file I'll talk 
+about the Ultrascale+ architecture (which is what I'm using on the MPSoCs). The 
+relevant document is at:
+
+https://www.xilinx.com/support/documentation/user_guides/ug574-ultrascale-clb.pdf
+
+One last thing: in this document, I describe RAM as (depth x width), which is 
+fairly standard.
+
+
+===================
+WRITING THE VERILOG
+===================
+
+We'll go over a few examples here. By the way, I have run all this code through 
+Vivado synthesis to confirm exactly how it's implemented on the FPGA fabric.
+
+From the XST manual (page 166 and with modifications), the following Verilog 
+code will get synthesized as 64x16 LUT RAM:
+
+    //
+    // Read-First Mode
+    //
+    (* ram_style = "distributed" *)
+    module lutram_64x16 (clk, en, we, addr, di, do);
+        input clk;
+        input we;
+        input en;
+        input [5:0] addr;
+        input [15:0] di;
+        output [15:0] do;
+        reg [15:0] RAM [63:0];
+        reg [15:0] do;
+        always @(posedge clk) begin
+            if (en) begin
+                if (we)
+                    RAM[addr]<=di;
+                do <= RAM[addr];
+            end
+        end
+    endmodule
+
+I ran synthesis, and this design uses 17 LUTs and 16 FFs. (Note: each LUT 
+results in a 64x1 RAM cell, and 16 are needed to get 64x16. The 17th LUT is an 
+AND gate between the "en" and "we" inputs, since when a LUT is configured as 
+LUTRAM, it only has read and write enable inputs).
+
+However, consider this: 
+
+    //
+    // Read-First Mode
+    //
+    (* ram_style = "distributed" *)
+    module lutram_48x16 (clk, en, we, addr, di, do);
+        input clk;
+        input we;
+        input en;
+        input [5:0] addr;
+        input [15:0] di;
+        output [15:0] do;
+        reg [15:0] RAM [47:0];
+        reg [15:0] do;
+        always @(posedge clk) begin
+            if (en) begin
+                if (we)
+                    RAM[addr]<=di;
+                do <= RAM[addr];
+            end
+        end
+    endmodule
+
+This synthesizes as 50 LUTs and 16 FFs! If you look at the schematic, you'll 
+see that Vivado is using 32 five-input LUTs each as a 32x1 RAM, and a bunch of 
+smaller LUTs to correctly twiddle the address/enable bits as well as to select 
+the correct outputs.
+
+This might be more area efficient overall, but the combinational delays are 
+much longer and this circuit is harder to place & route.
+
+Consider one last example:
+
+    //
+    // Read-First Mode
+    //
+    (* ram_style = "distributed" *)
+    module lutram_32x16 (clk, en, we, addr, di, do);
+        input clk;
+        input we;
+        input en;
+        input [4:0] addr;
+        input [15:0] di;
+        output [15:0] do;
+        reg [15:0] RAM [31:0];
+        reg [15:0] do;
+        always @(posedge clk) begin
+            if (en) begin
+                if (we)
+                    RAM[addr]<=di;
+                do <= RAM[addr];
+            end
+        end
+    endmodule
+
+This is synthesized as 17 LUTs and 16 FFs. In this case, Vivado is able to use 
+five-input LUTs as 32x1 RAMs.
+
+To make sense of this we'll need to think about CLB architecture.
+
+
+================
+CLB ARCHITECTURE
+================
+
+(This discussion is for the Ultrascale architecture; you will have to find the 
+relevant CLB User Guide if you are usign a different architecture)
+
+First of all, CLBs are arranged in columns, where each column has dozens of 
+(rectangular) CLBs. Each CLB contains some routing resources (which I don't 
+really ever pay attention to) and two "slices". The slice is what we care about.
+
+               .                              .
+               .                              .
+               +------------------------------+
+               |                              |
+               |  +-------+   +-------+       |
+               |  | Slice |   | Slice |  CLB  |
+               |  +-------+   +-------+       |
+               |                              |
+               +------------------------------+
+               |                              |
+               |  +-------+   +-------+       |
+               |  | Slice |   | Slice |  CLB  |
+               |  +-------+   +-------+       |
+               |                              |
+               +------------------------------+
+               |                              |
+               |  +-------+   +-------+       |
+               |  | Slice |   | Slice |  CLB  |
+               |  +-------+   +-------+       |
+               |                              |
+               +------------------------------+
+               |                              |
+               |  +-------+   +-------+       |
+               |  | Slice |   | Slice |  CLB  |
+               |  +-------+   +-------+       |
+               |                              |
+               +------------------------------+
+               .                              .
+               .                              .
+
+It is the slices that contain the actual logic elements that are used in your 
+design. On Ultrascale+, there is more than one type of slice, but in general 
+they contain around four 6-input LUTs, 8 Registers (FFs), Carry Chain logic, 
+and 8 MUXes. (Give or take)
+
+The thing we're talking about today is the 6-input LUTs. These can actually be 
+used in any one of the following configurations:
+
+    - A single 6-input LUT
+    - Two 5-input LUTs (that share all five input lines)
+    - Two 3-input or smaller LUTs (that do not need to share inputs)
+    - A single-port 64x1 asynchronous RAM
+    - Two single port 32x1 asynchronous RAMs
+    - A whole host of other RAM architectures (including dual-, quad-, and even
+      octal-port modes)
+
+Actually, if  you assume that each 6-input LUT contains 64 SRAM cells, then 
+some of the memory configurations advertised in the CLB User Guide seem 
+impossible. For example, the single-port 64x8 RAM. My guess is that when you're 
+using the whole slice as a big RAM, the unused configuration SRAMs for the 
+other things in the slice are used instead used for memory.
+
+Anyway, that's all I really have time to write about today, but it should be 
+enough to get you started.
+
+
+

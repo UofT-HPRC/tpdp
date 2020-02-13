@@ -45,3 +45,7 @@ set_property range_dependency {} [ipx::get_address_blocks -of_objects [ipx::get_
 
 Anyway, there you go
 
+
+
+UPDATE: Here is one for setting the POLARITY of a bus interface:
+set_property VALUE ACTIVE_LOW [ipx::get_bus_parameters -of_objects [ipx::get_bus_interfaces -of_objects [ipx::current_core] rst] POLARITY]

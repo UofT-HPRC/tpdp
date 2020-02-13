@@ -1,0 +1,6 @@
+I've been meaning to learn this for a long time now. I've been afraid to do 
+anything that involves math because I'm always unsure how it will get 
+synthesized. No more!
+
+This file is scheduled to be completed this weekend. In it, I want to talk 
+about how to use the pipelined multipliers and adders.
