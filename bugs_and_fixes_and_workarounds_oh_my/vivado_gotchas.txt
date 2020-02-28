@@ -2,6 +2,11 @@ This is a list of things that caused me to lose (a lot of) time. Eventually, I
 will try to find a better way to organize this so that it's easier to search 
 through.
 
+DCP does not exist error (for custom IPs)
+    If you try to run synthesis (or generate output products) and you get this 
+    error, it means there was a syntax error in your Verilog files. Would have 
+    been nice if Vivado bothered to mention that.
+
 Bad results in post-synthesis function simulation
     Many Vivado IPs as well as primitives (including BRAMs) require a few tens 
     of nanoseconds before they're "ready". So just add a #80 at the start of 
@@ -43,3 +48,7 @@ AXI interconnect hangs the ARM when only using debug bridge:
     Sometimes, in the properties, "Used in synthesis" will be unchecked (and 
     grayed out). To check it, right-click on the XDC file in the sources list 
     and click "Set used in..."
+
+ERROR: DCP does not exist
+    This happens when you try to run synthesis but your connection to the 
+    license server has dropped. Simply reconnect.

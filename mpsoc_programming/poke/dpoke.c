@@ -87,8 +87,9 @@ int main(int argc, char **argv) {
 	if (writing) {
 		*(volatile unsigned *)(base+pg_off) = data;
 	}
-	printf("Read back: 0x%x (%u)\n", *(volatile unsigned *)(base+pg_off), *(volatile unsigned *)(base+pg_off));
-
+    unsigned res = *(volatile unsigned *)(base+pg_off);
+	printf("Read back: 0x%x (%u)\n", res, res);
+    
 	munmap(base, 4096);
 	close(fd);
 
