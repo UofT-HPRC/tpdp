@@ -266,8 +266,8 @@ For all these reasons and more, using condition variables looks like this:
       pthread_cond_wait(&cnt_cond,     |    if (cnt > 10) {
                         &cnt_mtx);     |      pthread_cond_signal(&cnt_cond);
     }                                  |    }    
-    do_other_work();                   |    pthread_mutex_unlock(&cnt_mtx);
-                                       |       
+    pthread_mutex_unlock(&cnt_mtx);    |    pthread_mutex_unlock(&cnt_mtx);
+    do_other_work();                   |       
 
 There are three differences between this (correct) code and the earlier 
 (intuitive but incorrect) code:
