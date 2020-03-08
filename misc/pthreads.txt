@@ -1,0 +1,308 @@
+========
+OVERVIEW
+========
+
+pthreads is easier than you think. You only need to learn six functions (and 
+three datatypes) to implement most multithreaded programs:
+
+    - pthread_create       (create a thread and allow it to execute)
+    - pthread_join         (wait for a thread to finish)
+    - pthread_mutex_lock   (lock a mutex; more on this later)
+    - pthread_mutex_unlock (unlock a mutex)
+    - pthread_cond_wait    (wait on a condition variable; more on this later)
+    - pthread_cond signal  (signal to condition waiters that they can continue)
+
+The datatypes you need to know are:
+
+    - pthread_t       (handle to a thread, for use in pthread calls)
+    - pthread_mutex_t (you guessed it: a handle to a mutex)
+    - pthread_cond_t  (a condition variable; more on this later)
+
+(Obviously pthreads has more than this, but I've never needed anything else yet)
+
+After explaining how to compile pthread programs, this document will basically 
+have one section for each pair of functions in the above list. We'll discuss 
+the datatypes as the need arises. 
+
+REFERENCES
+----------
+
+https://computing.llnl.gov/tutorials/pthreads/
+https://github.com/angrave/SystemProgramming
+
+
+=======================
+COMPILING WITH PTHREADS
+=======================
+
+This is super easy. Basically, 
+
+    #include <pthread>
+
+in all your C code, and use
+
+    gcc -o mything mything.c -lpthread
+
+to compile.
+
+
+========================
+THREAD CREATION/DELETION
+========================
+
+This is also super easy! See the example at the end of the section, too.
+
+THREAD CREATION
+---------------
+
+Let's look at the signature for pthread_create:
+
+    int pthread_create(pthread_t *tid, pthread_attr_t const *attr,
+                       void *(*fn) (void*), void *arg)
+
+The first argument is the address of a pthread_t variable; pthread_create will 
+store the thread ID into this variable.
+
+The second argument lets you specify attributes for the thread. I have never 
+bothered with this, and you can just leave it as NULL.
+
+The third argument is the actual function that will run in the new thread. As 
+you can see, it is a function which takes in a void pointer and returns a void 
+pointer.
+
+The last argument is the void pointer that will be given as the argument to the 
+new thread.
+
+Finally, the return value is the usual "0 for success, nonzero for error".
+
+
+THREAD DELETION
+---------------
+
+It's not completely true that this is easy. There are some really tricky edge 
+cases if a thread crashes or gets killed. However, we'll assume everything is 
+working.
+
+There are a few ways to delete a thread. The obvious way is if the funtion that 
+is running in the thread returns, or if it explicitly calls pthread_exit(). It 
+is also possible for another thread to issue a force kill with 
+pthread_cancel(), but like I said, I'm ignoring that side of things.
+
+
+... so, there's nothing for us to do; threads just "delete themselves" when 
+they're done working.
+
+However, sometimes you want a thread to wait until another thread finishes. 
+Easy: just call:
+
+    int pthread_join(pthread_t *tid, void **retval)
+
+The first argument is a pointer to the pthread_t variable that was filled by 
+pthread_create.
+
+The second argument is a pointer to a void pointer; this void pointer will be 
+overwritten with whatever the thread returned. Note that you can leave this as 
+NULL to ignore the thread's return value.
+
+As usual, the function returns nonzero on error.
+
+
+EXAMPLE
+-------
+
+    void* my_fun(void *arg) {
+        //...
+        //Do some kind of work
+        //...
+        
+        return NULL;
+    }
+
+    int main() {
+        pthread_t thread; //Will store thread ID
+        
+        pthread_create(&thread, NULL, my_fun, NULL); //Start the thread
+        
+        //...
+        //Do some work
+        //...
+        
+        pthread_join(&thread, NULL); //Wait for my_fun to finish, ignore return
+        
+        return 0;
+    }
+
+
+=======
+MUTEXES
+=======
+
+As it turns out, pthread mutexes are also really easy! (...well, the API is 
+easy; it's up to you to handle synchronization properly, which is not usually 
+easy)
+
+INITIALIZING pthread_mutex_t VARIABLES
+--------------------------------------
+
+When declaring a mutex statically, define it like this:
+
+    pthread_mutex_t my_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+If you are initializing mutexes dynamically, use:
+
+    pthread_mutex_init(&my_allocated_mutex, NULL);
+
+(The second argument lets you specify attributes, but I never use it)
+
+
+LOCKING AND UNLOCKING
+---------------------
+
+No need to overthink this: suppose you have a global int called count, and you 
+want to serialize access to it:
+
+                                    GLOBAL
+--------------------------------------------------------------------------------
+    int count;
+    pthread_mutex_t count_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+             THREAD 1                  |                  THREAD 2
+--------------------------------------------------------------------------------
+    ...                                |    ...                                
+    pthread_mutex_lock(&count_mutex);  |    pthread_mutex_lock(&count_mutex);  
+    access(count);                     |    access(count);                     
+    pthread_mutex_unlock(&count_mutex);|    pthread_mutex_unlock(&count_mutex);
+    ...                                |    ...                                
+
+That's really it! 
+
+Of course, the usual rules of using mutexes apply. Don't lock a mutex while 
+holding another, don't hold a mutex while sleeping, etc.
+
+
+===================
+CONDITION VARIABLES
+===================
+
+This is where things become less easy. 
+
+Sometime there are cases where you want a thread to wait until a specific event 
+is triggered by another thread. For example, you want thread 1 to wait until 
+thread 2 has incremented a global count past 10. One way to do it is like this:
+
+                                    GLOBAL
+--------------------------------------------------------------------------------
+    int cnt;
+    pthread_mutex_t cnt_mtx = PTHREAD_MUTEX_INITIALIZER;
+
+             THREAD 1                  |                  THREAD 2
+--------------------------------------------------------------------------------
+    //Keep polling count               |    ...                                
+    while(1) {                         |    ...                                
+      pthread_mutex_lock(&cnt_mtx);    |    pthread_mutex_lock(&cnt_mtx);  
+      if(count > 10) {                 |    cnt++;             
+        pthread_mutex_unlock(&cnt_mtx);|    pthread_mutex_unlock(&cnt_mtx);
+        break;                         |    ...          
+      }                                |    pthread_mutex_lock(&cnt_mtx);  
+      pthread_mutex_unlock(&cnt_mtx);  |    cnt++;                    
+      pthread_yield();                 |    pthread_mutex_unlock(&cnt_mtx);
+    }                                  |    ...          
+    do_other_work();                   |    //etc
+
+
+The idea here is to have thread 1 check if the count is greater than 10. If so, 
+it can keep working. Otherwise, it calls pthread_yield() to let other processes 
+run before going on to check count again.
+
+Even in simple tests, quite a few clock cycles are wasted by this "polling" 
+approach. Not to mention the performance penalty of performing unneeded context 
+switching.
+
+The solution is condition variables. However, you might have expected them to 
+look like this:
+
+
+ABSOLUTELY INCORRECT!!!!!! THIS CODE IS NOT HOW CONDITION VARIABLES WORK!!!!!!!!
+                                    GLOBAL
+--------------------------------------------------------------------------------
+    int cnt;
+    pthread_cond_t cnt_cond = PTHREAD_COND_INITIALIZER;
+
+             THREAD 1                  |                  THREAD 2
+--------------------------------------------------------------------------------
+    pthread_cond_wait(&cnt_cond);      |    cnt++;        
+    do_other_work();                   |    ...   
+                                       |    cnt++;                    
+                                       |    ...
+                                       |             
+                                       |    if (cnt > 10) {
+                                       |      pthread_cond_signal(&cnt_cond);
+                                       |    }
+                                       |    
+ABSOLUTELY INCORRECT!!!!!! THIS CODE IS NOT HOW CONDITION VARIABLES WORK!!!!!!!!                                           
+
+                 
+There are some subtle reasons why condition variables can't work like this. See
+https://github.com/angrave/SystemProgramming/wiki/Synchronization%2C-Part-5%3A-Condition-Variables
+for a good explanation of what could go wrong.
+
+In reality, each condition variable is "protected" by a mutex. Furthermore, 
+sometimes a thread can receive "spurious wakeups"; in other words, you called 
+pthread_cond_wait, but your thread woke up for some reason OTHER THAN receiving 
+a pthread_cond_signal from another thread. 
+
+For all these reasons and more, using condition variables looks like this:
+
+                                    GLOBAL
+--------------------------------------------------------------------------------
+    int cnt;
+    pthread_mutex_t cnt_mtx = PTHREAD_MUTEX_INITIALIZER;
+    pthread_cond_t cnt_cond = PTHREAD_COND_INITIALIZER;
+
+             THREAD 1                  |                  THREAD 2
+--------------------------------------------------------------------------------
+    pthread_mutex_lock(&cnt_mtx);      |    pthread_mutex_lock(&cnt_mtx);
+    while(cnt <= 10) {                 |    cnt++;
+      pthread_cond_wait(&cnt_cond,     |    if (cnt > 10) {
+                        &cnt_mtx);     |      pthread_cond_signal(&cnt_cond);
+    }                                  |    }    
+    do_other_work();                   |    pthread_mutex_unlock(&cnt_mtx);
+                                       |       
+
+There are three differences between this (correct) code and the earlier 
+(intuitive but incorrect) code:
+
+    - Waiting on a condition requires us to be holding a mutex
+    - Even if pthread_cond_wait() returns, we still re-check the condition and
+      wait again if necessary
+    - Thread 2 is now guarding accesses to the shared cnt variable with the new
+      mutex
+
+The first change is because of subtle places where race conditions could 
+happen. (See the link from above). The second change is to deal with spurious 
+wakeups. 
+
+The third change seems weird, but this is only because this is a toy example. 
+See, in the incorrect version, thread 1 never actually accessed cnt. However, 
+in the correct version, because of spurious wakeups, thread 1 needs to read 
+cnt. Since we have a variable that is shared between two threads, both threads 
+need to do the usual guarding with mutexes to avoid race conditions.
+
+You may be thinking "wait a minute! pthread_cond_wait can cause the thread to 
+sleep, and you should never sleep while holding a mutex!" This is true, but as 
+it turns out, pthread_cond_wait will unlock the mutex before putting your 
+thread to sleep, and re-locks it when your process wakes up.
+    -> Again: the reason for this is quite subtle. I will refer you one more 
+      time to the link posted above, repeated here for convenience:
+      https://github.com/angrave/SystemProgramming/wiki/Synchronization%2C-Part-5%3A-Condition-Variables
+
+
+==========
+CONCLUSION
+==========
+
+This shold be all you need to get started with pthreads. Except for condition 
+variables, it's surprisingly easy to use.
+
+I guess condition variables are also easy to use, but there are some really 
+tricky things you need to know.

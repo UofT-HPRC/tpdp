@@ -210,3 +210,16 @@ Record your screen!
 	your disk. (By the way: I play the videos back at like 20x speed on 
 	VLC, then slow it down when it gets to the part I was interested in).
 
+Pipe program output from MPSoC to another computer
+    First, use SSH to set up a tunnel from the MPSoC to your computer. For 
+    example,
+    
+        ssh -Nf -R 55555:localhost:55555 savi@mpsocX
+    
+    On your copmuter, type
+        
+        netcat -l -p 55555
+    
+    On the MPSoC, run
+    
+        <your program> | netcat localhost 55555
