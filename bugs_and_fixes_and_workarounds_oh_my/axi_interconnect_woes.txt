@@ -1,3 +1,8 @@
+Undocumented Maximum AXI Clock From PS
+    We have found that 250 MHz doesn't work, even though Vivado claims it 
+    passes timing. Basically, once in a while a value will be mangled. At 
+    200 MHz everything is okay.
+
 Auto-generated AXI interconnects are correct about 50% of the time
 	It's true! Even if you run validate design (which propagates 
 	parameters), AXI Interconnects can still be DEAD WRONG*. This is the 

@@ -1,3 +1,8 @@
+Undocumented Maximum AXI Clock From PS
+    We have found that 250 MHz doesn't work, even though Vivado claims it 
+    passes timing. Basically, once in a while a value will be mangled. At 
+    200 MHz everything is okay.
+
 My MPSoC hangs whenever I try to access the PL!
     This happens when an AXI transaction doesn't get a response from the PL. In 
     this case, the PS will wait forever for a transaction that will be 
