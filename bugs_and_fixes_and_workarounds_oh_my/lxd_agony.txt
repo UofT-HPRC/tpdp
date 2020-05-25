@@ -1,0 +1,48 @@
+Using apt-get installs a ridiculously old version of LXD
+    For some bizarre reason, you have to use a different package manager
+    to install the most recent verions: 
+        https://stgraber.org/2016/10/17/lxd-snap-available/
+    You really do need to do this. Many of the help docs and commands you
+    find online rely on the new version.
+    
+    By the way, I have added
+    
+        alias lxc=/snap/bin/lxc
+        alias lxd=/snap/bin/lxd
+    
+    in my .bashrc. Be careful when using sudo to always use /snap/bin/lxd
+    instead of just lxd (otherwise, you will end up using the old version)
+
+
+LXD fails to restart after host machine is rebooted. 
+    For me, this happened because the database got corrupted. I would get 
+    error messages with lxc commands that said something like "could not
+    connect to unix.socket" or whatever. Another error message I got from
+    the journalctl command was:
+    
+        May 25 13:01:40 agent-31 lxd.daemon[37308]: 
+        t=2020-05-25T13:01:40-0400 lvl=eror msg="Failed to start the 
+        daemon: Failed to start dqlite server: raft_start(): io: closed 
+        segment 0000000000001036-0000000000001050 is past last snapshot 
+        snapshot-1-1024-6590035"
+    
+    Basically, what I had to do was find the lxd database:
+    
+        $ cd /
+        $ find -name "database" 2>/dev/null | less
+    
+    Eventually, this turned up the directory
+        
+        /var/snap/lxd/common/lxd/database/
+    
+    So the commands I ran (as root) were:
+    
+        $ cd /var/snap/lxd/common/lxd/
+        $ tar -czf backup.tgz database       # (just in case bad things happen)
+        $ rm database/global/0000*
+        $ systemctl restart snap.lxd.daemon
+        
+    
+
+    
+    
