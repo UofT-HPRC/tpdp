@@ -273,3 +273,22 @@ performance is garbage unless you are really good with pragmas and manual
 reordering. These are all the pragmas you have at your disposal:
 
     https://www.xilinx.com/html_docs/xilinx2019_1/sdaccel_doc/hls-pragmas-okr1504034364623.html 
+
+EXPORTING YOUR HLS
+===================
+
+This method of HLS writing leads to a project being composed of many little HLS
+scripts rather than one large one. You can stitch together the HLS scripts
+alongside other IP cores in vivado integrator. First you need to tell HLS what
+your top level function is. This can be done via Project -> Project Settings ->
+Synthesis. Here you click browse and select the top level function. Next you can
+apply solution settings via Solution -> Solution Settings where you can set a
+bunch of parameters such as the anticipated clock rate, change part number, and
+other options you should explore. Once you are done you can synthesize your code
+using the green arrow which produces a report telling you the max clock speed,
+the latency and Interval (how often the core can be run, ideally you want 0
+which means it is always running), and resource usage. Hitting the yellow square
+with four squares lets you export the HLS. Then in Vivado you can add an IP to
+an IP repository or create an ip repository in the IP Catalog menu. The HLS IP
+is located in <HLS_Folder>/solution1/impl/ip/<ip_name>.zip . You do not need to
+extract the ZIP.
