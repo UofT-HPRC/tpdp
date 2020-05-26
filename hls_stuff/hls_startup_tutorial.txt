@@ -96,7 +96,8 @@ obtained by continuing the sample from earlier:
     {
     #pragma HLS DATAFLOW 
     #pragma HLS INTERFACE ap_ctrl_none port=return 
-    #pragma HLS INTERFACE ap_none port=<port_name> 
+    #pragma HLS INTERFACE ap_none port=input
+    #pragma HLS INTERFACE ap_none port=output
     
         static ap_int<32> current_value = 0;//a register to hold our count
         
@@ -257,6 +258,63 @@ write.
        }
     }
 
+AXI Registers
+--------------
+HLS also lets you have AXI memory mapped registers allowing another function 
+to set or read values using the AXI memory bus. To do this, you declare the 
+ports in the exact same way as before but you add a special pragma to specify 
+that this port is a memory mapped register port.
+
+Instead of using:
+ #pragma HLS INTERFACE ap_none port=<port_name> 
+ use:
+ #pragma HLS resource variable=<port_name> core=AXI4LiteS metadata={-bus_bundle BUS_A}
+
+Let us repeat the first example but instead of using physical ports
+we will use memory mapped ports. Normally you can use a combination of the two
+
+================================================================================
+
+    #include "hls_stream.h"
+    #include "ap_int.h"
+    #include "ap_utils.h"
+    void top_level_function
+    (
+        ap_int<32> input,
+        ap_int<32> &output,
+    )
+    {
+    #pragma HLS DATAFLOW 
+    #pragma HLS INTERFACE ap_ctrl_none port=return 
+     #pragma HLS resource variable=input core=AXI4LiteS metadata={-bus_bundle BUS_A}
+     #pragma HLS resource variable=output core=AXI4LiteS metadata={-bus_bundle BUS_A}
+    
+        static ap_int<32> current_value = 0;//a register to hold our count
+        
+        ap_int<32> temp_value;//a wire so that we only read from current_value one and write to it once
+        temp_value = current_value;
+        
+        output = temp_value + input; //set the output port (all ports are wires by the way);
+        
+        current_value = temp_value + input; //Update the register so that the next cycle it is updated
+    }
+=====================================================================
+
+In the explorer tab you can get the addresses of each port in 
+impl -> ip-> drivers -> <project name> ->src -> <some_name>.h
+
+This file has a header that looks like this:
+
+// BUS_A
+// 0x00 : reserved
+// 0x04 : reserved
+// 0x08 : reserved
+// 0x0c : reserved
+// 0x10 : reserved
+// 0x14 : Data signal of BASE_ADDR_V
+//        bit 31~0 - BASE_ADDR_V[31:0] (Read/Write)
+
+In this case the port BASE_ADDR_V is at offset 0x14 within this IP.
 
 C with pragmas
 --------------
