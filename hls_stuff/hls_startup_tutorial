@@ -1,0 +1,141 @@
+The makers of HLS wanted to make a way to magically convert C code to Verilog but making that possible is still far away. For now there are three methods used for Verilog HLS development, they don't have official names but for simplicity I will call them: Verilog in C, C with Pragmas, and Hybrid.
+Always include these libraries as they are very often needed for HLS
+#include "hls_stream.h"
+#include "ap_int.h"
+#include "ap_utils.h"
+Verilog in C - for an example of this method check out this code I wrote: https://github.com/UofT-HPRC/Latency_1_HLS_Switch/blob/master/switch.cpp though it is a bit complex, maybe the hybrid examples are better
+For Verilog in C we write a function in C that is to be converted to verilog. The parameters specify what ports we want in the verilog where (and this is a bit hacky) ports with an & are output ports (such as ap_uint<7> &port_1) and ports without an & are input ports (such as ap_uint<6> port_2).  ap_uint<x> and ap_int<x> by the way is part of the ap_int library and it allows you to declare an unsigned or signed integer exactly x bits long. This is not supported in the CPU world but in hardware we want control over exactly how wide a port is.
+Sample so far
+=====================================================================================================
+#include "hls_stream.h"
+#include "ap_int.h"
+#include "ap_utils.h"
+void top_level_function
+(
+  ap_uint<5> Unsigned_Input_port_of_5_bits,
+  ap_int<7> Signed_Input_port_of_7_bits,
+  ap_uint<512> &Unsigned_Output_port_of_512_bits
+)
+=====================================================================================================
+Once you have declared your ports, you are ready to start writing the function. The first thing you write are top level pragmas. Pragmas are extra pieces of info you give the compiler to help you transform your code to verilog. Two pragmas I almost always use are
+#pragma HLS DATAFLOW //Says that all functions can run concurrently which is useful when coding as verilog
+#pragma HLS INTERFACE ap_ctrl_none port=return //By default the verilog will have a start input port and a finish output port which is good for C with pragmas but for Verilog in C or Hybrid we want it to always be "active" and this pragma does this
+#pragma HLS INTERFACE ap_none port=<port_name> //Ports have by default a bunch of useless output ports that are supposed to be for debug, this tells HLS they are not necessary helping de-clutter the design
+Now you are ready to write your code. In verilog we have wires and registers. In HLS local variables are treated like wires and static local variables like registers. Static variables therefore keep their values until overwritten for all time. Timing wise remember reading or writing to registers takes longer than with wires so a good strategy is at the start of the function you read a static to a non static and then at the end of the function you update the static variable if needed. Also and this is important, it should not be possible for a static variable to be accessed twice in execution with the exception of initialization. For statics you can initialize them by saying static ap_uint<5> reg = 4; where they are set to 4 at startup.
+Here is a sample code that at every clock cycle outputs the sum of the input value with a running value initialized as 0
+=====================================================================================================
+#include "hls_stream.h"
+#include "ap_int.h"
+#include "ap_utils.h"
+void top_level_function
+(
+  ap_int<32> input,
+  ap_int<32> &output,
+)
+{
+#pragma HLS DATAFLOW //Says that all functions can run concurrently which is useful when coding as verilog
+#pragma HLS INTERFACE ap_ctrl_none port=return //By default the verilog will have a start input port and a finish output port which is good for C with pragmas but for Verilog in C or Hybrid we want it to always be "active" and this pragma does this
+#pragma HLS INTERFACE ap_none port=<port_name> //Ports have by default a bunch of useless output ports that are supposed to be for debug, this tells HLS they are not necessary helping de-clutter the design
+  static ap_int<32> current_value = 0;//a register to hold our count
+  ap_int<32> temp_value;//a wire so that we only read from current_value one and write to it once
+  temp_value = current_value;
+  output = temp_value + input; //set the output port (all ports are wires by the way);
+  current_value = temp_value + input; //Update the register so that the next cycle it is updated
+}
+=====================================================================================================
+The second useful way of writing HLS and really this is the only reason why HLS is easier is the hybrid way. HLS is really good in that you can easily create and use an AXI FULL memory channel or AXI Stream communication channels
+I have many examples of HLS used this way found here: https://github.com/UofT-HPRC/SHIP/tree/master/src/vhls
+AXI STREAM:
+For AXI Stream, HLS lets you treat an AXI Stream Slave as a read only file (where reading takes the next flit on the AXI Stream communication line) and an AXI Stream Master as a write only file. This is nice because you don't have to deal with things like backpressure, HLS does that for you.
+The best way to show you how to do it is with an example. I will repeat the above one but instead of reading and writing to a port I am going to get a value from an AXI Stream input and write it to an AXI Stream output. Note that this code also checks if there is a value on the input line and it does nothing if there is not. You can modify this to make a verilog that actively modifies a stream of data without "affecting it" (the throughput is unchanged)
+=====================================================================================================
+#include "hls_stream.h"
+#include "ap_int.h"
+#include "ap_utils.h"
+struct dataword
+{
+	ap_uint<512> data;
+	ap_uint<64> keep;
+	ap_uint<1> last;
+};
+//In AXI Stream you create a struct with the sideband channels you need and their respective widths. Here we have data keep and last for demonstration purposes but you can use any combination of sideband signals (galapagos uses dest for example).
+//Valid and Ready, the backpressure signals, are handled internally so you don't need to add them.
+void top_level_function
+(
+  hls::stream<dataword>& input,//Declaration of an AXIS interface. Note Master and Slave have the same declaration and HLS infers which one it is depending on if you read or write to the port
+  hls::stream<dataword>& output,
+)
+{
+#pragma HLS DATAFLOW //Says that all functions can run concurrently which is useful when coding as verilog
+#pragma HLS INTERFACE ap_ctrl_none port=return //By default the verilog will have a start input port and a finish output port which is good for C with pragmas but for Verilog in C or Hybrid we want it to always be "active" and this pragma does this
+#pragma HLS resource core=AXI4Stream variable = input
+#pragma HLS DATA_PACK variable=input //These two are necessary for all HLS stream interfaces
+#pragma HLS resource core=AXI4Stream variable = output
+#pragma HLS DATA_PACK variable=output //These two are necessary for all HLS stream interfaces
+   static ap_int<32> current_value = 0;//a register to hold our count
+   ap_int<32> temp_value;//a wire so that we only read from current_value one and write to it once
+   temp_value = current_value;
+   dataword temp_data_in //wires to get and put the value from the interface
+   dataword temp_data_out
+   if (!input.empty() && !output.full()) //checks if the input has data available and the output is not backpressuring and can accept data (again so much easier than having to do this yourself in verilog)
+   {
+      temp_data_in = input.read();
+      temp_data_out.data = temp_data_in.data + temp_value; // we can individually assign each element in the struct
+      temp_data_out.keep = temp_data_in.keep;//Lets pass the sidebands unchanged
+      temp_data_out.last = temp_data_in.last;
+      output.write(temp_data_out);
+      current_value = current_value + temp_data_in.data;
+   }
+}
+=====================================================================================================
+
+
+AXI FULL:
+For AXI FULL, heres a good example I wrote https://github.com/UofT-HPRC/SHIP/blob/master/src/vhls/data_storer.cpp
+AXI full's protocol is not necessarily hard but it has 4 dozen signals so it is tedious but with HLS it is easy to do. You declare the output as a pointer and write to some offset of it. Things like memcpy also work to send out AXI Full bursts which you can check out.
+
+Here is an example of a code that writes the data coming in from AXI Stream to the memory and outputs the previous value of that memory on a master stream port. Here lets say that the user gives us the address to write in the tuser sideband channel and the data in the tdata channel. Note that since the memory is slow. The core will backpressure (not let data in) until the memory accesses are done so throughput is limited by memory bandwidth. Since each run takes more than one cycle you don't have to worry about things like temporary registers for your wires, HLS will deal with that in the background and you can just assume everything takes one cycle. Note that this code would have taken more than 1000 lines of verilog to write.
+=====================================================================================================
+#include "hls_stream.h"
+#include "ap_int.h"
+#include "ap_utils.h"
+struct dataword
+{
+	ap_uint<512> data;
+	ap_uint<32> user;
+};
+//In AXI Stream you create a struct with the sideband channels you need and their respective widths. Here we have data keep and last for demonstration purposes but you can use any combination of sideband signals (galapagos uses dest for example).
+//Valid and Ready, the backpressure signals, are handled internally so you don't need to add them.
+void top_level_function
+(
+hls::stream<dataword>& input,//Declaration of an AXIS interface. Note Master and Slave have the same declaration and HLS infers which one it is depending on if you read or write to the port
+hls::stream<dataword>& output,
+ap_uint<512> *mem //width can be whatever is convenient
+)
+{
+#pragma HLS DATAFLOW //Says that all functions can run concurrently which is useful when coding as verilog
+#pragma HLS INTERFACE ap_ctrl_none port=return //By default the verilog will have a start input port and a finish output port which is good for C with pragmas but for Verilog in C or Hybrid we want it to always be "active" and this pragma does this
+#pragma HLS resource core=AXI4Stream variable = input
+#pragma HLS DATA_PACK variable=input //These two are necessary for all HLS stream interfaces
+#pragma HLS resource core=AXI4Stream variable = output
+#pragma HLS DATA_PACK variable=output //These two are necessary for all HLS stream interfaces
+#pragma HLS INTERFACE ap_bus depth=1024 port=mem
+#pragma HLS resource variable=mem core=AXI4M//These two are necessary for HLS Memory accesses
+   //There are no statics this time since each "run" is independant
+   dataword temp_data_in; //wires to get and put the value from the interface
+   dataword temp_data_out;
+   ap_uint<512> old_data_read;
+   ap_uint<32> address;
+   if (!input.empty() && !output.full()) //checks if the input has data available and the output is not backpressuring and can accept data (again so much easier than having to do this yourself in verilog)
+   {
+      temp_data_in = input.read();
+      address = temp_data_in.user / 64; //Since this synthesizes as C, it will notice mem is a pointer to 64 byte long element and it will multiply the address by this amount so we need to cancel it out, this is the same as CPU.
+      temp_data_out.data = mem[address];//This does the AXI FULL read and it makes use of bursting and all the other stuff
+      temp_data_out.user = temp_data_in.user;
+      mem[address] = temp_data_in.data;//This does the AXI FULL write. HLS is smart enough to make sure this write happens after the previous read (it handles cache consistency!)
+      output.write(temp_data_out);
+   }
+}
+=====================================================================================================
+The third and certainly least (not a typo) method is C with pragmas. Here is where you write normal C code, fill it with pragmas to help it improve performance, and pray. Clark is much better than I am at getting this method to work with decent performance so I would ask him if this is something you want to do. In this case the lack of the dataflow pragma is used to tell HLS that this is your method. HLS tries to and fails at finding dependencies in your code to run things in parallel while guaranteeing functionality but it has so many false positives that performance is garbage unless you are really good with pragmas and manual reordering. These are all the pragmas you have at your disposal:
+https://www.xilinx.com/html_docs/xilinx2019_1/sdaccel_doc/hls-pragmas-okr1504034364623.html 
