@@ -331,6 +331,359 @@ performance is garbage unless you are really good with pragmas and manual
 reordering. These are all the pragmas you have at your disposal:
 
     https://www.xilinx.com/html_docs/xilinx2019_1/sdaccel_doc/hls-pragmas-okr1504034364623.html 
+    
+Doing State machines with the hybrid version + Real World Example of more complex HLS
+======================================================================================
+
+State machines in HLS are similar to state machines in C except now we have a
+static variable (register) holding our current state and we have a bit of logic
+which gets excecuted for each stage. This is efficiently achieved using switch
+statements. 
+
+Below is a more complex real-world example combining all the above lessons. It
+is directly pulled from my research so please ask me if you have questions. This
+is a state machine with 5 states each doing some processing and writing to
+different cores. This core adds a header to a packet. The info for this header
+comes from another AXI stream source (param_in) and from physical ports (which I
+connect externally to constant blocks) (roce_flags). Adding another layer of
+complexity while the incomming packet can be of any length, the outgoing packet
+it can not be longer than 1344 bytes long (due to a physical limitation on the
+output) so if the packet + the header does not fit, I need to output multiple
+smaller packets and each of these subsequent packets have a slightly different
+header. Also, since the header is not 512 bits long, adding it disaligns the
+packet so I need to send a little bit from the last flit each cycle which I
+store in a static (register) variable called old_data.
+
+This example also makes use of .bit and .range methods of the ap_uint<x>
+objects. These allow you to operate on or extract specific bits from a
+ap_uint<x> bus which is imposible in CPUs but fully possible in hardware.
+.range(a,b) takes the bits from high address a to low address b inclusive.
+.bit(i) is the same as saying .range(i,i) when you are extracting a single bit.
+Some other notes are bool in hls is taken as ap_uint<1> where true is 1 and
+false is 0. Bools can be used in logical expressions.
+
+=================================================================
+#include "hls_stream.h"
+#include "ap_int.h"
+#include "ap_utils.h"
+
+#define MAX_PACKET_LENGTH 1344
+#define MAX_PAYLOAD_LENGTH (MAX_PACKET_LENGTH-0x40)
+#define MAX_NUM_OF_BEATS MAX_PAYLOAD_LENGTH/64
+
+#define WAITING_FOR_PARAM 0
+#define WRITE_DATA_OFFSET_28 1
+#define SENDING_LAST_OF_PACKET_28 2
+#define SENDING_NEXT_PACKET 3
+#define WRITE_DATA_OFFSET_12 4
+#define SENDING_LAST_OF_PACKET_12 5
+
+struct dataword
+{
+	ap_uint<512> data;
+	ap_uint<64> keep;
+	ap_uint<1> last;
+};
+
+struct parameters
+{
+	ap_uint<24> dest_qp;//the queue targeted
+	ap_uint<24> packet_sequence_number;
+	ap_uint<32> password;
+	ap_uint<32> length;
+};
+//Parameters does not use the "normal" hls sidebands so hls will combine all of them into
+//tdata of 112 bits and have no sideband channels. This struct must match in order to the 
+//struct at the other core producing or receiving this so they both split the data in the same way
+
+struct flags
+{
+	ap_uint<2> conjestion;//bit 0 is forward congestion, 1 is backwards congestion
+	ap_uint<16> partition;//The partition that the dest QP is inside of
+	ap_uint<1> solicited_event;//indicates the requester wants an acknowledgement when the work is done
+	ap_uint<1> mig_req;//indicates migration state (1 => EE context has migrated)
+	ap_uint<4> transport_header_version;//version of IBA transport
+	ap_uint<1> ack_req;//indicates the requester wants an acknowledgement when the packet is received
+};
+
+void write_core
+(
+	flags roce_flags,//hls will automatically split up the struct to multiple input ports
+	hls::stream<parameters> param_in,
+	hls::stream<dataword> data_to_write,
+	hls::stream<dataword> payload_out
+)
+{
+#pragma HLS INTERFACE ap_ctrl_none port=return
+
+#pragma HLS resource core=AXI4Stream variable = param_in
+#pragma HLS DATA_PACK variable=param_in
+
+#pragma HLS resource core=AXI4Stream variable = data_to_write
+#pragma HLS DATA_PACK variable=data_to_write
+
+#pragma HLS resource core=AXI4Stream variable = payload_out
+#pragma HLS DATA_PACK variable=payload_out
+
+	static ap_uint<8> stage = WAITING_FOR_PARAM;//state machine variable
+    //declare wires and registers
+	static ap_uint<8> num_of_reads = 0;
+	dataword data_in_temp;
+	dataword data_out_temp;
+	static bool do_not_read = false;
+	static parameters param_perm;
+	static ap_uint<224> old_data=0;
+	static ap_uint<28> old_keep=0;
+	parameters param;
+	switch (stage)
+	{
+	case WAITING_FOR_PARAM:
+		if (!param_in.empty() && !data_to_write.empty() && !payload_out.full())
+		{
+			param = param_in.read();
+			data_in_temp=data_to_write.read();
+			num_of_reads = 2;
+			if (param.length < MAX_PAYLOAD_LENGTH)
+			{
+                //Will it fit? The header needs to tell recepient
+				data_out_temp.data.range(511,504) = 10;
+			}
+			else
+			{
+				data_out_temp.data.range(511,504) = 6;
+			}
+			data_out_temp.data.bit(503)= roce_flags.solicited_event;
+			data_out_temp.data.bit(502)= roce_flags.mig_req;
+			data_out_temp.data.range(501,500)=0;
+			data_out_temp.data.range(499,496)=roce_flags.transport_header_version;
+			data_out_temp.data.range(495,480)=roce_flags.partition;
+			data_out_temp.data.range(479,478)=roce_flags.conjestion;
+			data_out_temp.data.range(477,472)=0;
+			data_out_temp.data.range(471,448)=param.dest_qp;
+			data_out_temp.data.bit(447)=roce_flags.ack_req;
+			data_out_temp.data.range(446,440)=0;
+			data_out_temp.data.range(439,416)=param.packet_sequence_number;
+			data_out_temp.data.range(415,352)=0;
+			data_out_temp.data.range(351,320)=param.password;
+			data_out_temp.data.range(319,288)=param.length;
+			data_out_temp.data.range(287,0)=data_in_temp.data.range(511,224);
+			old_data.range(223,0)= data_in_temp.data.range(223,0);
+			old_keep.range(27,0)= data_in_temp.keep.range(27,0);
+			data_out_temp.keep.range(63,36) = 0xfffffff;
+			data_out_temp.keep.range(35,0) = data_in_temp.keep.range(63,28);
+			if ((data_in_temp.last==1) && (data_in_temp.keep.range(27,0)==0))
+			{
+                //.last is 1 and the keep tells us the end of the flit (last 27 bytes) does not have useful data
+				data_out_temp.last = 1;
+				stage = WAITING_FOR_PARAM;
+			}
+			else if ((data_in_temp.last==1))
+			{
+                //.last is 1 and the keep tells us the end of the flit (last 27 bytes) does have useful data
+                //We will not read next cycle the input but will write out the last little bit of old data
+				data_out_temp.last = 0;
+				do_not_read=true;
+				stage = WRITE_DATA_OFFSET_28;
+			}
+			else
+			{
+                //.last is 0 so continue as usual
+				data_out_temp.last=0;
+				do_not_read=false;
+				stage = WRITE_DATA_OFFSET_28;
+			}
+			payload_out.write(data_out_temp);
+			param_perm = param;
+		}
+		break;
+	case WRITE_DATA_OFFSET_28:
+		if ((!data_to_write.empty() || do_not_read) && !payload_out.full())
+		{
+			if (do_not_read)
+			{
+                //The incoming packet is done but we have unwritten data in old_data
+				data_in_temp.data = 0;
+				data_in_temp.keep = 0;
+				data_in_temp.last = 1;
+			}
+			else
+			{
+                //read the packet
+				data_in_temp=data_to_write.read();
+			}
+			param_perm.length = param_perm.length - 64;
+			data_out_temp.data.range(511,288)=old_data.range(223,0);
+			data_out_temp.data.range(287,0)=data_in_temp.data.range(511,224);//All 0 if do_not_read is true
+			data_out_temp.keep.range(63,36)=old_keep.range(27,0);
+			data_out_temp.keep.range(35,0)=data_in_temp.keep.range(63,28);//All 0 if do_not_read is true
+			if ((do_not_read)||((data_in_temp.last==1) && (data_in_temp.keep.bit(27)==0)))
+			{
+                //either do_not_read is true and this is the last little bit of data from old_data or
+                //.last is 1 and the keep tells us the end of the flit (last 27 bytes) does not have useful data
+				data_out_temp.last = 1;
+				stage = WAITING_FOR_PARAM;
+			}
+			else if ((data_in_temp.last==1))
+			{
+                //The incoming packet is done but because the above case is not true then old_data still has useful
+                //data inside of this so it is not the end for the output
+				data_out_temp.last = 0;
+				do_not_read=true;//we won't read next cycle, just send the last bit of old_data
+				stage = WRITE_DATA_OFFSET_28;
+			}
+			else if (num_of_reads>=MAX_NUM_OF_BEATS)
+			{
+                //Packet is not done but our space is so we need to send out the last bit of old_data and end the packet
+				data_out_temp.last = 0;
+				stage = SENDING_LAST_OF_PACKET_28;
+			}
+			else
+			{
+                //Normal case, we stay here and keep sending out the packet
+				data_out_temp.last = 0;
+				do_not_read = false;
+				stage = WRITE_DATA_OFFSET_28;
+			}
+            //Store old_keep and old_data for the future
+			old_keep.range(27,0)=data_in_temp.keep.range(27,0);
+			old_data.range(223,0)=data_in_temp.data.range(223,0);
+            //Write out the output data packet
+			payload_out.write(data_out_temp);
+            //Update how many times we have written
+			num_of_reads++;
+		}
+		break;
+	case SENDING_LAST_OF_PACKET_28:
+		if (!payload_out.full())
+		{
+            //Indicate the end of packet with the last bit of old data and go to the new packet state
+			param_perm.length = param_perm.length - 64;
+			data_out_temp.data.range(511,288)=old_data.range(223,0);
+			data_out_temp.data.range(287,0)=0;
+			data_out_temp.keep.range(63,36)=old_keep.range(27,0);
+			data_out_temp.keep.range(35,0)=0;
+			data_out_temp.last = 1;
+			stage = SENDING_NEXT_PACKET;
+			payload_out.write(data_out_temp);
+		}
+		break;
+	case SENDING_NEXT_PACKET:
+		if (!data_to_write.empty() && !payload_out.full())
+		{
+			//param = param_perm;
+			data_in_temp=data_to_write.read();
+			num_of_reads = 2;
+			data_out_temp.data.bit(503)= roce_flags.solicited_event;
+			data_out_temp.data.bit(502)= roce_flags.mig_req;
+			data_out_temp.data.range(501,500)=0;
+			data_out_temp.data.range(499,496)=roce_flags.transport_header_version;
+			data_out_temp.data.range(495,480)=roce_flags.partition;
+			data_out_temp.data.range(479,478)=roce_flags.conjestion;
+			data_out_temp.data.range(477,472)=0;
+			data_out_temp.data.range(471,448)=param_perm.dest_qp;
+			data_out_temp.data.bit(447)=roce_flags.ack_req;
+			data_out_temp.data.range(446,440)=0;
+			data_out_temp.data.range(439,416)=param_perm.packet_sequence_number;
+			data_out_temp.data.range(415,0)=data_in_temp.data.range(511,96);
+			old_data.range(95,0)= data_in_temp.data.range(95,0);
+			old_keep.range(11,0)= data_in_temp.keep.range(11,0);
+			data_out_temp.keep.range(63,52) = 0xfff;
+			data_out_temp.keep.range(51,0) = data_in_temp.keep.range(63,12);
+			if (param_perm.length < MAX_PAYLOAD_LENGTH)
+			{
+                //Indicates to recepient this is not the first packet nor the last
+				data_out_temp.data.range(511,504) = 8;
+			}
+			else
+			{
+                //Indicates to recepient this is the last packet but not the first
+				data_out_temp.data.range(511,504) = 7;
+			}
+            //Same as above but now the header is smaller so now we look at the last 12 bytes of data
+			if ((data_in_temp.last==1) && (data_in_temp.keep.bit(11)==0))
+			{
+				data_out_temp.last = 1;
+				stage = WAITING_FOR_PARAM;
+			}
+			else if ((data_in_temp.last==1))
+			{
+				data_out_temp.last = 0;
+				do_not_read=true;
+				stage = WRITE_DATA_OFFSET_12;
+			}
+			else
+			{
+				data_out_temp.last=0;
+				do_not_read=false;
+				stage = WRITE_DATA_OFFSET_12;
+			}
+			payload_out.write(data_out_temp);
+		}
+		break;
+	case WRITE_DATA_OFFSET_12:
+        //Same as before but the shifting is a bit different
+		if ((!data_to_write.empty() || do_not_read) && !payload_out.full())
+		{
+			param_perm.length = param_perm.length - 64;
+			if (do_not_read)
+			{
+				data_in_temp.data = 0;
+				data_in_temp.keep = 0;
+				data_in_temp.last = 1;
+			}
+			else
+			{
+				data_in_temp=data_to_write.read();
+			}
+			data_out_temp.data.range(511,416)=old_data.range(95,0);
+			data_out_temp.data.range(415,0)=data_in_temp.data.range(511,96);
+			data_out_temp.keep.range(63,52)=old_keep.range(11,0);
+			data_out_temp.keep.range(51,0)=data_in_temp.keep.range(63,12);
+			if ((do_not_read)||((data_in_temp.last==1) && (data_in_temp.keep.range(11,0)==0)))
+			{
+				data_out_temp.last = 1;
+				stage = WAITING_FOR_PARAM;
+			}
+			else if ((data_in_temp.last==1))
+			{
+				data_out_temp.last = 0;
+				do_not_read=true;
+				stage = WRITE_DATA_OFFSET_12;
+			}
+			else if (num_of_reads>=MAX_NUM_OF_BEATS)
+			{
+				data_out_temp.last = 0;
+				stage = SENDING_LAST_OF_PACKET_12;
+			}
+			else
+			{
+				data_out_temp.last = 0;
+				do_not_read = false;
+				stage = WRITE_DATA_OFFSET_12;
+			}
+			old_keep.range(11,0)=data_in_temp.keep.range(11,0);
+			old_data.range(95,0)=data_in_temp.data.range(95,0);
+			payload_out.write(data_out_temp);
+			num_of_reads++;
+		}
+		break;
+	case SENDING_LAST_OF_PACKET_12:
+		if (!payload_out.full())
+		{
+			param_perm.length = param_perm.length - 64;
+			data_out_temp.data.range(511,416)=old_data.range(95,0);
+			data_out_temp.data.range(415,0)=0;
+			data_out_temp.keep.range(63,52)=old_keep.range(11,0);
+			data_out_temp.keep.range(51,0)=0;
+			data_out_temp.last = 1;
+			stage = SENDING_NEXT_PACKET;
+			payload_out.write(data_out_temp);
+		}
+		break;
+	}
+}
+=================================================================================
+
 
 EXPORTING YOUR HLS
 ===================
