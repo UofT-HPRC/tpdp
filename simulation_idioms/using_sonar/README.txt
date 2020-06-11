@@ -563,7 +563,7 @@ simulation after a maxium amount of time:
 
     timeout_thd = Thread()
     timeout_thd.add_delay("5000ns")
-    timeout_thd.display("Simulation timed out!")
+    timeout_thd.display("Simulation_timed_out!")
     timeout_thd.end_vector()
     
     tv.add_thread(timeout_thd)
@@ -732,7 +732,7 @@ outputs_thd.end_vector()
 # TIMEOUT THREAD
 timeout_thd = Thread()
 timeout_thd.add_delay("5000ns")
-timeout_thd.display("Simulation timed out!")
+timeout_thd.display("Simulation_timed_out!")
 timeout_thd.end_vector()
 
 # Add these threads to the TestVector
