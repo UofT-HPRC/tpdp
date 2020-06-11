@@ -388,6 +388,10 @@ wait_negedge(self, signal):
     
 
 
+
+
+
+
 ADDING INTERFACE TRANSACTIONS TO A THREAD
 -----------------------------------------
 
@@ -451,7 +455,7 @@ read(thread, data, **kwargs):
         and if I don't get it, I want to see an error message.
         
 
-def reads(thread, data):
+reads(thread, data):
     Reads the list of keyworded args from an AXI stream to verify output.
     This command results in a smaller file size than repeated 'read' commands.
 
@@ -464,7 +468,7 @@ def reads(thread, data):
         See extra notes on write, writes, and reads
 
 
-def wait(thread, data, bit_range=None):
+wait(thread, data, bit_range=None):
     Adds a wait statement to the provided thread for a specific tdata value
 
     Args:
@@ -491,6 +495,10 @@ file_to_stream(thread, filePath, parsingFunc=None, endian="little"):
 
     Returns:
         dict: Dictionary representing the data transaction
+
+
+
+
 
 
 
@@ -548,6 +556,18 @@ the simulation will run forever. end_vector inserts a special event into the
 simulation that ends the test, but here's the problem: the test ends as soon
 as it sees the first instance of end_vector. So, we use flags in kind of the
 same way that you might use pthread_join. Hopefully that makes sense.
+
+By the way: you might have issues with simulations running forever. One way
+to prevent this is to have a separate Thread which simply ends the 
+simulation after a maxium amount of time:
+
+    timeout_thd = Thread()
+    timeout_thd.add_delay("5000ns")
+    timeout_thd.display("Simulation timed out!")
+    timeout_thd.end_vector()
+    
+    tv.add_thread(timeout_thd)
+
     
 ===========================================================
 GENERATE THE SYSTEMVERILOG TESTBENCH AND RUN THE SIMULATION
@@ -583,14 +603,18 @@ With any luck, that should just work. You should now see three json files
 (ignore these) and two simulation files: a .sv and a .dat. Basically, the
 .sv file is what runs the simulation, and the .dat contains the test inputs.
 
-At this point, you have all the files you need to run a simulation. You can
-add these two files to the sources in a Vivado project, or you can run xsim
-from the command line:
+At this point, you have all the files you need to run a simulation. Vivado,
+ModelSim, and any other SystemVerilog-compliant simulator should be able to
+perform your simulation, but for completeness, Vivado-specific instructions
+are given below:
 
     $ xvlog axis_swap_endian.v
     $ xvlog --sv --relax axis_swap_endian_tb.sv
     $ xelab -debug typical axis_swap_endian_tb
     $ xsim -R axis_swap_endian_tb
+
+Alternatively, you can simply add the .sv and .dat files to the sources of
+a Vivado project and just use the GUI in the normal way.
 
 That's it!
 
@@ -705,9 +729,16 @@ outputs_thd.wait_flag(0)
 # Finally, end the simulation
 outputs_thd.end_vector()
 
-# Add these two threads to the TestVector
+# TIMEOUT THREAD
+timeout_thd = Thread()
+timeout_thd.add_delay("5000ns")
+timeout_thd.display("Simulation timed out!")
+timeout_thd.end_vector()
+
+# Add these threads to the TestVector
 tv.add_thread(inputs_thd)
 tv.add_thread(outputs_thd)
+tv.add_thread(timeout_thd)
 
 # Construct the Testbench object
 tb = Testbench.default("axis_swap_endian")

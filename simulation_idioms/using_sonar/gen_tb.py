@@ -81,9 +81,16 @@ outputs_thd.wait_flag(0)
 # Finally, end the simulation
 outputs_thd.end_vector()
 
-# Add these two threads to the TestVector
+# TIMEOUT THREAD
+timeout_thd = Thread()
+timeout_thd.add_delay("5000ns")
+timeout_thd.display("Simulation timed out!")
+timeout_thd.end_vector()
+
+# Add these threads to the TestVector
 tv.add_thread(inputs_thd)
 tv.add_thread(outputs_thd)
+tv.add_thread(timeout_thd)
 
 # Construct the Testbench object
 tb = Testbench.default("axis_swap_endian")
