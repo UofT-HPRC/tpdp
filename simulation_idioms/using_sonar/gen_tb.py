@@ -53,6 +53,11 @@ inputs_thd.init_signals()
 inputs_thd.set_signal("rst", "1")
 inputs_thd.wait_negedge("clk")
 inputs_thd.set_signal("rst", "0")
+# For simplicity, pretend output AXI Stream is always ready
+# Note: for some reason we have to use lower-case "_tready". This
+# is only true for ports inside interfaces; in general, the case must
+# match whatever you have in your Verilog
+inputs_thd.set_signal("new_tready", "1")
 # Write a few flits with no byte swapping
 inputs_thd.set_signal("enable_swap", "0")
 old.write(inputs_thd, "0xDEADBEEF", tkeep="0xF", tlast="0")
@@ -62,6 +67,8 @@ inputs_thd.wait_negedge("clk")
 inputs_thd.set_signal("enable_swap", "1")
 old.write(inputs_thd, "0x01234567", tkeep="0xF", tlast="0")
 old.write(inputs_thd, "0x89ABCDEF", tkeep="0xC", tlast="1")
+# Finally, signal that we're finished by setting flag 0
+inputs_thd.set_flag(0)
 
 # OUTPUT THREAD
 # Read flits and state our expectations
@@ -69,6 +76,10 @@ new.read(outputs_thd, "0xDEADBEEF", tkeep="0xF", tlast="0")
 new.read(outputs_thd, "0xCAFEBABE", tkeep="0xC", tlast="1")
 new.read(outputs_thd, "0x67452301", tkeep="0xF", tlast="0")
 new.read(outputs_thd, "0xEFCDAB89", tkeep="0x3", tlast="1")
+# Wait for flag 0 to make sure the input thread is finsihed
+outputs_thd.wait_flag(0)
+# Finally, end the simulation
+outputs_thd.end_vector()
 
 # Add these two threads to the TestVector
 tv.add_thread(inputs_thd)
@@ -80,4 +91,4 @@ tb.add_module(dut)
 tb.add_test_vector(tv)
 
 # Generate the SystemVerilog testbench
-tb.generateTB(os.getcwd(), "sv")
+tb.generateTB(os.getcwd() + "/", "sv")

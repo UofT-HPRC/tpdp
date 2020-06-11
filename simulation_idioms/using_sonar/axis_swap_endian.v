@@ -14,11 +14,11 @@ module axis_swap_endian (
     input wire old_TVALID,
     output wire old_TREADY,
     
-    input wire [31:0] new_TDATA,
-    input wire [3:0] new_TKEEP,
-    input wire new_TLAST,
-    input wire new_TVALID,
-    output wire new_TREADY
+    output wire [31:0] new_TDATA,
+    output wire [3:0] new_TKEEP,
+    output wire new_TLAST,
+    output wire new_TVALID,
+    input wire new_TREADY
 );
 
     assign new_TDATA = enable_swap ?
@@ -32,6 +32,8 @@ module axis_swap_endian (
     ;
     
     assign new_TLAST = old_TLAST;
+    
+    assign new_TVALID = old_TVALID;
     
     assign old_TREADY = new_TREADY;
 
