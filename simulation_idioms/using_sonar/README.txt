@@ -634,6 +634,11 @@ LIST OF FEATURES MISSING
 
     - (added in dev branch) Generated TB for AXIS reads doesn't check for 
       correct values on sidechannels
+      
+    - A way to ask that an interface does not throw an error if values are
+      wrong
+    
+    - A way to check that an interfaces DOES NOT send anything
     
     - Simulation should have a maximum running time (if you have a bug and
       an AXIS flit is never generated but hte TB expects one, it just goes
