@@ -703,3 +703,20 @@ with four squares lets you export the HLS. Then in Vivado you can add an IP to
 an IP repository or create an ip repository in the IP Catalog menu. The HLS IP
 is located in <HLS_Folder>/solution1/impl/ip/<ip_name>.zip . You do not need to
 extract the ZIP.
+
+
+=======================
+Challenge Problems
+=======================
+
+1. Create an HLS core with an input AXI Streaming port that has valid, ready, 
+and 32 bit data (treated as unsigned). Read that value and update a 512 bit output
+port with the running sum of the input streaming port.
+
+2. Create your own GPIO which has 3 input and 3 output signals. Each signal 
+should have a register address where writes set the output
+signals and reads retreive the current input signal
+
+3 . Create a 3 to 1 axi stream switch that arbitrates whenever the last signal is 1. 
+Use fixed priority arbitration (e.g. if port 1 has data available it is always chosen 
+otherwise choose port 2 and if it has no data choose port 3)
