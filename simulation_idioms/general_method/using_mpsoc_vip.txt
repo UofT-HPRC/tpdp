@@ -1,0 +1,190 @@
+=====
+INTRO
+=====
+
+Normally, if you want to simulate an AXI bus in a block design, you have to
+edit your design to include an AXI VIP (which is a major pain in the neck).
+However, there is an easier way if you're using the Zynq Ultrascale+ MPSoC IP:
+it turns out that when you do a behavioural simulation of a block diagram that
+has this IP, Vivado automatically replaces it with a simulation model. You can 
+find the details in this document:
+
+https://www.xilinx.com/support/documentation/ip_documentation/zynq_ultra_ps_e_vip/v1_0/ds941-zynq-ultra-ps-e-vip.pdf
+
+Basically, we need to do three things:
+
+ 1) Find the hierarchical path from our testbench to the MPSoC IP (we'll need 
+    this in order to access its functions).
+    
+ 2) Copy-paste some black magic code from the documentation into an initial 
+    block
+ 
+ 3) Write the desired testbench logic
+
+
+One last thing before we start: your testbench has to be in SystemVerilog. If 
+you already made your testbench file with Verilog, you can right-click on it in 
+the Sources menu and hit "Set File type...". 
+
+======================
+FIND HIERARCHICAL PATH
+======================
+
+Usually, in my testbench, I call my instantiated design "DUT". This means that
+I have a block design named "design_1", and if my Zynq IP core is named 
+"zynq_ultra_ps_e_0" (the absolutely hideous default names) then the hierarchical
+path is:
+
+	DUT.design_1_i.zynq_ultra_ps_e_0.inst
+	
+For convenience, we'll save this abhorrently long string into a macro:
+
+	`define PS DUT.design_1_i.zynq_ultra_ps_e_0.inst
+
+For the rest of this tutorial, I will use the `PS macro in the code, which means
+that if you set up the proper `define statement, you'll be able to copy-paste
+any code.
+
+
+
+BUT WHAT IF THE PATH IN MY DIAGRAM IS DIFFERENT?
+------------------------------------------------
+
+If you don't like this "guesswork" approach, then there is a surefire way to 
+get the exact path. Create a bare testbench that looks like this:
+
+	module tb();
+	design_1_wrapper DUT ();
+	endmodule
+
+(By the way, you remembered to make an HDL wrapper for your block design, 
+right? I still don't know why this is necessary, but it is). Now, just run a 
+behavioural simulation. Even though we don't actually simulate anything useful,
+we can use the "Scope" window in the simulation to get our hierarchical path.
+For example, mine looked like this:
+
+	tb
+		DUT
+			design_1_i
+				...
+				(bunch of other IPs in my diagram)
+				...
+				zynq_ultra_ps_e_0
+					inst
+
+Since our statements are in the "tb" module, the relative path to the PS is
+"DUT.design_1_i.zynq_ultra_ps_e_0.inst" (by the way, this is how I got the path
+that I put at the top of this section)
+
+
+=====================
+REQUIRED INCANTATIONS
+=====================
+
+We need to copy-paste a few statements into our testbench so that it properly 
+"resets" the MPSoC VIP (whatever that means). Honestly, I have no idea why 
+you're forced to do this or what these function calls do, but you have to put 
+them in anwyay. Add in the following code:
+
+	initial begin
+		`PS.por_srstb_reset(1'b1);
+		#200;
+		`PS.por_srstb_reset(1'b0);
+		`PS.fpga_soft_reset(4'hF);
+		#400;
+		//minimum 16 clock pulse width delay
+		`PS.por_srstb_reset(1'b1);
+		`PS.fpga_soft_reset(4'h0);
+		
+		//The rest of your testench logic will probably go here!
+		//...
+	end
+
+
+============================
+WRITING YOUR TESTBENCH LOGIC
+============================
+
+Of course, nothing in Vivado can ever be simple. In the MPSoC VIP 
+documentation, it says you can use functions called "read_data" and 
+"write_data". I was surprised how easy it was. However, these functions have a
+restriction: the address must be "aligned".
+
+Now what, pray tell, do you supposed "aligned" means? I've discovered that it 
+means the four least significant bits of the address are zero. Unfortunately, 
+this means you can't use these functions for 32-bit-aligned addresses. So, we
+have to use the much more complicated versions of these functions.
+
+Below I've given a summary of the functions you should use. Some of the 
+parameters are things I never use, so I've provided Sensible Default Values 
+(SDVs) that you can use. By the way, I explain the meaning of BUS_NAME later 
+on.
+
+FUNCTION:
+	`PS.BUS_NAME.read_burst(addr, len, size, burst, lock, cache, prot, data, response)
+PARAMETERS:
+	addr (input):      The desired read address
+	len (input):       The burst length. SDV = 0 (note: in AXI, burst lengths 
+	                   are always one less than the desired value)
+	size (input):	   log_2(bytes per flit). For example, if you want to send
+	                   a burst of five 32-bit transfers, you would use len = 5
+	                   and size = 2. SDV = 2.
+	burst (input): 	   The burst type. 00 = FIXED, 01 = INCR, 10 = WRAP. SDV = 1
+	lock (input):	   Who the hell knows what this is for. SDV = 0
+	cache (input):     Something to do with caching. SDV = 0
+	prot (input):      Who cares? SDV = 0
+	data (output):     The read data, sized according to len*(2^size)
+	response (output): The 2-bit RRESP signal.
+
+
+FUNCTION:
+	`PS.BUS_NAME.write_burst(addr, len, size, burst, lock, cache, prot, data, response)
+PARAMETERS:
+	addr (input):      The desired write address
+	len (input):       The burst length. SDV = 0 (note: in AXI, burst lengths 
+	                   are always one less than the desired value)
+	size (input):	   log_2(bytes per flit). For example, if you want to send
+	                   a burst of five 32-bit transfers, you would use len = 5
+	                   and size = 2. SDV = 2.
+	burst (input): 	   The burst type. 00 = FIXED, 01 = INCR, 10 = WRAP. SDV = 1
+	lock (input):	   Who the hell knows what this is for. SDV = 0
+	cache (input):     Something to do with caching. SDV = 0
+	prot (input):      Who cares? SDV = 0
+	data (input):      The write data, sized according to len*(2^size)
+	datasize (input):  The number of bytes in data. Kind of a pain, but I guess
+	                   this has to be here in order to compute TKEEP on the last
+	                   flit. SDV = 4
+	response (output): The 2-bit BRESP signal.
+
+
+In my block diagram, I am using the PS's M_AXI_HPM0_FPD bus (this is the exact 
+name written on the actual IP in the block diagram). This means I would replace 
+BUS_NAME with M_AXI_HPM0_FPD in the above function calls.
+
+These functions are such a pain to deal with, so I use macros to simplify my 
+life:
+
+	`define PS_RD(addr, data, resp) `PS.M_AXI_HPM0_FPD.read_burst(addr, 0, 2, 1, 0, 0, 0, data, resp)
+	`define PS_WR(addr, data, resp) `PS.M_AXI_HPM0_FPD.write_burst(addr, 0, 2, 1, 0, 0, 0, data, 4, resp)
+
+
+A quick example: I have an IP core mapped to address 0xA0010000. If I wanted to 
+read from register offset 0x1C, then I would do:
+
+	//Outside any initial/always block
+	reg [31:0] rd_data;
+	reg [1:0] rresp;
+
+	//Inside an initial block, probably the same one from the REQUIRED 
+	//INCANTATIONS section
+	initial begin
+		//...
+		
+		`PS_RD(40'hA001001C, rd_data, rrsep);
+	end
+
+Well, that's about it. Of course, anything involving VIPs always entails
+inscrutable arcana, so your mileage may vary. Good luck!
+	
+
+	
