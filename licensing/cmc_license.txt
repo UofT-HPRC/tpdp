@@ -1,0 +1,86 @@
+=== NEW May 2022  - start ===
+
+The CADactivate procedure has changed, as shown under "Grad students
+and researchers.
+
+=== NEW May 2022  - end ===
+
+Prior to the summer of 2012, licenses for CAD tools from
+Cadence, Synopsys and Mentor were hosted on local VRG computers,
+with annual renewals occurring around May.  In the summer of
+2012, these licenses began to be hosted on CMC Microsystems
+computers in Kingston and Edmonton.
+
+Only people registered at CMC Microsystems will be permitted to
+access those licenses.
+
+==========================
+Professors need to ensure:
+==========================
+- that they have a login account at CMC Microsystems:
+  - visit <http://www.cmc.ca/> and click the "Get an Account"
+    button at the top right corner of the page
+- that they are subscribed to CMC Microsystems 
+	<http://www.cmc.ca/en/WhatWeOffer/Subscription.aspx>
+
+==============================
+Grad students and researchers:
+==============================
+- grad students (and any other researchers) must have accounts
+  registered at CMC, too, claiming a faculty supervisor
+  - visit <http://www.cmc.ca/> and click the "Get an Account"
+    button at the top right corner of the page
+  - **please** use a UofT e-mail address when registering; it makes
+    things much easier to trace if you ever have problems with
+    CAD tool licenses in the future
+  - Once registered, make sure to complete *all* fields located in
+    My_Account->My_Account_Details, especially your faculty
+    supervisor, in order to gain access to the license.
+  - you should receive email notification from CMC when your supervisor
+    acknowledges supervising you; at that time your registration is
+    complete.  CMC updates their license access files several times
+    per day during business hours -- I think 9am, 11am, 1pm, 3pm --
+    so there could be some delay before you can actually access licenses.
+- upon completion of the registration processing, all users
+  must run an activation script to associate their UofT credentials
+  to their CMC account:
+	- from a linux machine, type
+		/CMC/apps/cadactivate/cadactivate.csh
+  Type your CMC username (normally your email address) and password.
+
+  NOTE: The activation must be run from a
+	computer where your username is identical to the
+	username you will use while trying to acquire licenses.
+
+===================
+Course instructors:
+===================
+For course-work: ECE has an Institutional Subscription, which
+means that licenses for ECE course-work are included for no
+additional cost.
+To set up license access for a course, please send a
+message to "licensing@cmc.ca" -- with a 'cc' to
+jaro.pristupa@utoronto.ca -- with details of 
+- instructor's name
+- course number
+- course name
+- the list of CAD tools required (normally "Cadence, Synopsys, and Mentor"
+  will be sufficient for courses related to electronics or computers)
+  Other tools (e.g. Keysight ADS) are also available; you can check on
+  CMC's website for availability.
+- estimated number of students, or (better) a list of the UtorIDs
+  of the students in your course.  You can download such a list from
+  Quercus.  Please also include the UtorIDs of any TAs who might also
+  need to access the CAD tools, and your own UtorID if you plan to
+  test as well.
+
+CMC will send you a course-ID and password that you can *ignore*.
+(If you send the list of UtorIDs, CMC staff can activate those logins automatically
+for you once the course is registered, even before the term begins,
+and the course-ID/password can be discarded.)
+Once the term begins, you or your TA can communicate with CMC to add
+UtorIDs for students who register late.
+
+If you have any questions, please don't hesitate to contact me.
+
+	jaro.pristupa@utoronto.ca

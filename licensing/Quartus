@@ -1,0 +1,4 @@
+From an agent, add the following environment variables to your .bashrc:
+
+export LM_LICENSE_FILE="1802@ra.eecg.utoronto.ca:27007@mlm.ece.utoronto.ca:27002@ra.eecg.utoronto.ca:27008@mlm.ece.utoronto.ca:27012@mlm.ece.utoronto.ca:40012@mlm.ece.utoronto.ca:7062@mlm.ece.utoronto.ca:6062@mlm.ece.utoronto.ca"
+export ALTERAD_LICENSE_FILE="1802@ra.eecg.utoronto.ca:27007@mlm.ece.utoronto.ca:27002@ra.eecg.utoronto.ca:27008@mlm.ece.utoronto.ca:27012@mlm.ece.utoronto.ca:40012@mlm.ece.utoronto.ca:7062@mlm.ece.utoronto.ca:6062@mlm.ece.utoronto.ca"

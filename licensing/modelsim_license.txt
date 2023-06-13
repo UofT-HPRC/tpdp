@@ -1,0 +1,39 @@
+ModelSim uses CMC Mentor license servers, using two ports
+for flexlm (6056, 7056) and three corresponding
+vendor-daemon ports (16056, 17056).
+
+Tier-1 computers: Access to these ports is freely open
+from any Tier-1 or Tier-2 computer for users who
+- have CMC accounts, and
+- whose supervisors subscribe to CMC services at the Designer or Prototyping
+  levels, and
+- who have run CADactivate on the computer where they plan to run the
+  software, to connect their login name with their CMC accounts.
+  (See <http://www.vrg.utoronto.ca/~jaro/VRG/licenses/CMC_subscriptions.txt>
+   for CADactivate details.)
+
+Set up your environment variable "MGLS_LICENSE_FILE" as follows:
+
+- For csh:
+   	setenv MGLS_LICENSE_FILE 7056@cadpserver.ece.utoronto.ca:6056@cadpserver.ece.utoronto.ca
+- For sh/bash:
+	export MGLS_LICENSE_FILE=7056@cadpserver.ece.utoronto.ca:6056@cadpserver.ece.utoronto.ca
+- For Windows:
+	MGLS_LICENSE_FILE=7056@cadpserver.ece.utoronto.ca;6056@cadpserver.ece.utoronto.ca
+	[Note the ';' for Windows instead of ':' used on solaris/linux machines]
+
+
+For access from outside ECE's Tier-1 networks, you will
+need a login account on one of the Tier-1 ECE servers.  Once that is
+established, you can set up SSH tunnels to access the ports
+on cadpserver.ece.utoronto.ca.  (You will also need to tunnel the
+"vendor daemon ports", 17056, and 16056.)
+
+You can try this:
+
+$ ssh -f -L 7056:cadpserver.ece.utoronto.ca:7056 \
+    -L 6056:cadpserver.ece.utoronto.ca:6056 \
+    -L 17056:cadpserver.ece.utoronto.ca:17056 \
+    -L 16056:cadpserver.ece.utoronto.ca:16056 \
+    yourlogin@tier1server.group.utoronto.ca sleep 100000000
+$ export MGLS_LICENSE_FILE=7056@localhost:6056@localhost

@@ -1,0 +1,13 @@
+from inside an agent, add this environment variable to your bashrc
+
+export XILINXD_LICENSE_FILE="27012@mlm.ece.utoronto.ca:40012@mlm.ece.utoronto.ca"
+
+from external ssh to a server using
+
+ssh -L 27012:mlm.ece.utoronto.ca:27012 -L 40012:mlm.ece.utoronto.ca:40012
+
+then set the environment variable
+
+export XILINXD_LICENSE_FILE="27012@localhost:40012@localhost"
+
+For windows machines, rather than setting the environment variable, paste the above in the license manager.
