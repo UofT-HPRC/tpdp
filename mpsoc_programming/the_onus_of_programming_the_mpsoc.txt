@@ -12,23 +12,14 @@ TL;DR
 
 The list of commands I end up using:
 
+#
 -> On my computer
-    $ bootgen -arch zynqmp -image specific.bif -o my_output.bin -w
-    $ scp ...
-
--> On the MPSoC (if not done already)
-    $ sudo insmod /path/to/axidma.ko
-    $ sudo insmod /path/to/mpsoc_axiregs.ko
-    $ sudo insmod /path/to/mpsoc_PSRegs.ko
-    $ sudo /home/savi/enableATB.sh
-
+    $ scp <bitstream> mpsoc<index>:~/
 
 -> On the MPSoC (done every time I have a new bitstream)
-    $ cp my.bin /lib/firmware/my.bin
+    $ sudo cp <bitstream> /lib/firmware/
     $ sudo su
-    $ set_clocks freq1 [freq2] [freq3] [freq4] 
-    $ cd /lib/firmware
-    $ program my.bin
+    $ program <bitstream>
 
 ========
 OVERVIEW 
