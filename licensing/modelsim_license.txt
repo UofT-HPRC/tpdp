@@ -37,3 +37,27 @@ $ ssh -f -L 7056:cadpserver.ece.utoronto.ca:7056 \
     -L 16056:cadpserver.ece.utoronto.ca:16056 \
     yourlogin@tier1server.group.utoronto.ca sleep 100000000
 $ export MGLS_LICENSE_FILE=7056@localhost:6056@localhost
+
+
+What you need before starting:
+1. An account on a U of T Tier-1 Machine (eg. UG machines, or Seth)
+2. An account on an Agent, **with the same username as your username on the Tier-1 Machine**
+	- Eg. if your account is <utorid>@ugXXX.eecg.toronto.edu, you need an account called <utorid> on the Agent.
+
+Step-by-Step Instructions:
+1. Follow the instructions in http://www.vrg.utoronto.ca/~jaro/VRG/licenses/CMC_subscription.txt under "Grad Students and Researchers" to make yourself a CMC account, add Paul Chow as your supervisor, and source the CMC script to associate your CMC account with your Tier-1 account.
+	- Paul Chow has to approve being your supervisor on the CMC site, so please give him a heads up.
+	- To source the CMC script, run `source /CMC/apps/cadactivate/cadactivate.csh`
+2. On your Agent, open your .bashrc file and add the following lines:
+	- ```
+	  export MODELSIM_PATH=/mnt/shares/tools/modelsim/modelsim.10.7c
+	  export PATH=$MODELSIM_PATH/modeltech/bin:$PATH
+	  export MGLS_LICENSE_FILE=7056@localhost:6056@localhost
+	  alias modelsim_license='ssh -f -L 7056:cadpserver.ece.utoronto.ca:7056 -L 6056:cadpserver.ece.utoronto.ca:6056 -L 17056:cadpserver.ece.utoronto.ca:17056 -L 16056:cadpserver.ece.utoronto.ca:16056 <username>@<tier1machine>.utoronto.ca sleep 100000000'
+          alias vsim=$MODELSIM_PATH/modeltech/linux_x86_64/vsim
+	  ```
+	- Replace <username>@<tier1machine> with your account on the Tier-1 Machine (eg. <utorid>@ugXXX.eecg.toronto.edu).
+3. Whenever you want to run modelsim, run the command `modelsim_license` in a terminal.
+	- This opens up a licensing tunnel from your Tier 1 machine to your Agent. The license is associated with a specific username, which is why your usernames on the Agent and Tier-1 Machine must match
+4. Run modelsim by running the command `vsim` in a terminal.
+	- NOTE: If you wish to run in GUI mode, you will need to have a VNC Session running.
