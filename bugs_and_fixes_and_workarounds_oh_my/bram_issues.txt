@@ -1,1 +1,5 @@
-
+BRAM outputs are delayed by 1 access:
+  Symptoms:
+  - When you access the BRAM twice, the first access returns nothing, and the second access returns the value found at the first access' address
+  Solution:
+  - Your BRAM likely has output registers enabled. This causes the accessed value to be delayed by an access. To turn this off, click on your Block Memory Generator and under `Port X Options -> Port X Optional Output Registers` disable any output registers.  
