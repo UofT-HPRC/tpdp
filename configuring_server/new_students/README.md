@@ -31,14 +31,27 @@ This guide contains information that may be helpful for new students in the grou
        ```
    2. NOTE: This will install the Python version as `python3`. If you want to install multiple versions of python (eg. `python3.7`), in the last step run `sudo make altinstall`
 
+# Pip Error: SSL Timeout
+1. Follow the steps here to edit `openssl.conf`: [https://stackoverflow.com/questions/61568215/openssl-v1-1-1-ubuntu-20-tlsv1-no-protocols-available](https://stackoverflow.com/questions/61568215/openssl-v1-1-1-ubuntu-20-tlsv1-no-protocols-available)
+2. Copied here in case link is dead: Make the following changes to `/etc/ssl/openssl.cnf`:
+	1. At the top, add: `openssl_conf = default_conf`
+ 	2. At the bottom, add:
+  	3. ```
+           	[ default_conf ]
+		ssl_conf = ssl_sect
+		
+		[ssl_sect]
+		system_default = system_default_sect
+		
+		[system_default_sect]
+		MinProtocol = TLSv1.2
+		CipherString = DEFAULT:@SECLEVEL=1
+      	```
+
+
 ## First Time Setup
 1. Install Python 3.7.10 as python3.7 (altinstall):
-2. Create Python 3.7 virtual environment
-3. Enter Python 3.7 virtual environment
-4. Pip install the following dependencies:
-	1. If there's an issue with pip, make the following modifications to openssl.conf
-5. Run `source build.sh`
-6. Ready to go! Run make test to make a test project
+
 
 
 
@@ -46,8 +59,7 @@ This guide contains information that may be helpful for new students in the grou
 
 1. Download Python 3.7.10 XZ compressed source tarball from here: [https://www.python.org/downloads/release/python-3710/](https://www.python.org/downloads/release/python-3710/)
 2. Unzip the tarball using: `tar -xvf Python-3.7.10.tar.xz` 
-4. `pip3 install wheel pyfiglet regex PyInquirer`
-If you have issues running pip: [https://stackoverflow.com/questions/61568215/openssl-v1-1-1-ubuntu-20-tlsv1-no-protocols-available](https://stackoverflow.com/questions/61568215/openssl-v1-1-1-ubuntu-20-tlsv1-no-protocols-available)
+4. 
 1. We recommend using a virtual environment. Follow the instructions here to setup a Python virtual environment: [https://docs.python.org/3/library/venv.html#creating-virtual-environments](https://docs.python.org/3/library/venv.html#creating-virtual-environments)
 2. Enter the virtual environment by running the command `source <path_to_virtual_environment>/bin/activate`
 3. Install the following Python dependencies:
