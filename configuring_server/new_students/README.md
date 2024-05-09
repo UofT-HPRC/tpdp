@@ -37,7 +37,7 @@ This guide contains information that may be helpful for new students in the grou
 	1. At the top, add: `openssl_conf = default_conf`
  	2. At the bottom, add:
   	3. ```
-           	[ default_conf ]
+      	[ default_conf ]
 		ssl_conf = ssl_sect
 		
 		[ssl_sect]
