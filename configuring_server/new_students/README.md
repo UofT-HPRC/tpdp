@@ -30,6 +30,7 @@ This guide contains information that may be helpful for new students in the grou
        sudo make install
        ```
    2. NOTE: This will install the Python version as `python3`. If you want to install multiple versions of python (eg. `python3.7`), in the last step run `sudo make altinstall`
+   3. if `make test` shows a failure of `test_ssl`, continue with the installation and perform the repair see in [Pip Error: SSL Timeout]()
 
 # Pip Error: SSL Timeout
 1. Follow the steps here to edit `openssl.conf`: [https://stackoverflow.com/questions/61568215/openssl-v1-1-1-ubuntu-20-tlsv1-no-protocols-available](https://stackoverflow.com/questions/61568215/openssl-v1-1-1-ubuntu-20-tlsv1-no-protocols-available)
