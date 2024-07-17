@@ -23,7 +23,7 @@ This guide contains information that may be helpful for new students in the grou
 3. Open a web browser, and from the Python web page select the Python version you want. Download the `XZ compressed source tarball` version.
 4. Unzip the Python version using the command `tar -xvf <python>.tar.xz`
 5. Follow the instructions in `README.rst` to install Python. Usually, the instructions are to run the following:
-    6. ```
+    1. ```
        ./configure
        make
        make test
